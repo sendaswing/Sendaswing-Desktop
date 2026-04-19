@@ -1,0 +1,16 @@
+{
+  "extends": "@electron-toolkit/tsconfig/tsconfig.web.json",
+  "include": ["src/renderer/src/**/*"],
+  "compilerOptions": {
+    "composite": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "baseUrl": ".",
+    "paths": {
+      "@renderer/*": ["./src/renderer/src/*"],
+      "@lib/*": ["./src/renderer/src/lib/*"],
+      "@store/*": ["./src/renderer/src/store/*"],
+      "@hooks/*": ["./src/renderer/src/hooks/*"],
+      "@components/*": ["./src/renderer/src/components/*"]
+    }
+  }
+}
