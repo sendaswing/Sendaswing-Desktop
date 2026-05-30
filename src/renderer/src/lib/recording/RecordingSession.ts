@@ -5,10 +5,14 @@ export class RecordingSession {
   private sessionId: string | null = null
   private slotIndex: number
   private cameraLabel: string
+  private cameraAngle: string
+  private club: string
 
-  constructor(slotIndex: number, cameraLabel: string) {
+  constructor(slotIndex: number, cameraLabel: string, cameraAngle: string, club: string) {
     this.slotIndex = slotIndex
     this.cameraLabel = cameraLabel
+    this.cameraAngle = cameraAngle
+    this.club = club
   }
 
   async start(stream: MediaStream): Promise<string> {
@@ -22,7 +26,9 @@ export class RecordingSession {
 
     this.sessionId = await (window as any).electronAPI.recording.init({
       filename,
-      cameraLabel: this.cameraLabel
+      cameraLabel: this.cameraLabel,
+      cameraAngle: this.cameraAngle,
+      club: this.club
     })
 
     this.recorder = new MediaRecorder(stream, {

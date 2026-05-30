@@ -10,8 +10,8 @@ export function useRecorder() {
   const { addClip } = useClipStore()
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const startRecording = useCallback(async (slotIndex: number, stream: MediaStream, label: string) => {
-    const session = new RecordingSession(slotIndex, label)
+  const startRecording = useCallback(async (slotIndex: number, stream: MediaStream, label: string, cameraAngle: string, club: string) => {
+    const session = new RecordingSession(slotIndex, label, cameraAngle, club)
     sessions.set(slotIndex, session)
 
     const sessionId = await session.start(stream)
@@ -36,9 +36,9 @@ export function useRecorder() {
     setTimeout(() => setSlotRecording(slotIndex, { status: 'idle' }), 2000)
   }, [])
 
-  const startAll = useCallback(async (activeSlots: Array<{ index: number; stream: MediaStream; label: string }>) => {
+  const startAll = useCallback(async (activeSlots: Array<{ index: number; stream: MediaStream; label: string; cameraAngle: string; club: string }>) => {
     setIsRecordingAll(true)
-    await Promise.all(activeSlots.map((s) => startRecording(s.index, s.stream, s.label)))
+    await Promise.all(activeSlots.map((s) => startRecording(s.index, s.stream, s.label, s.cameraAngle, s.club)))
 
     timerRef.current = setInterval(() => {
       for (const [idx] of sessions) {

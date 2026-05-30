@@ -3,7 +3,10 @@ import { FolderOpen, Film } from 'lucide-react'
 import { useClipStore } from '../../store/clipStore'
 import { useAnalysisStore } from '../../store/analysisStore'
 import { cn } from '../../lib/utils/cn'
-import type { Clip } from '../../types/clip'
+import type { Clip, CameraAngle, ClubType } from '../../types/clip'
+
+const ANGLES: CameraAngle[] = ['FO', 'DL', 'Other']
+const CLUBS: ClubType[] = ['Driver', 'Iron', 'Wedge', 'FW', 'Hybrid', 'Putt']
 
 export function ClipBrowser() {
   const { clips, addClip } = useClipStore()
@@ -25,6 +28,8 @@ export function ClipBrowser() {
         thumbnailPath: null,
         recordedAt: new Date().toISOString(),
         cameraLabel: 'Imported',
+        cameraAngle: '',
+        club: '',
         tags: [],
         annotations: []
       }
@@ -61,6 +66,52 @@ export function ClipBrowser() {
             />
           ))
         )}
+      </div>
+
+      {activeClip && <TagEditor clipId={activeClip.id} />}
+    </div>
+  )
+}
+
+function TagEditor({ clipId }: { clipId: string }) {
+  const { clips, updateClipMeta } = useClipStore()
+  const clip = clips.find((c) => c.id === clipId)
+  if (!clip) return null
+
+  return (
+    <div className="border-t border-white/10 p-2 space-y-1.5 shrink-0">
+      <p className="text-xs text-white/25 uppercase tracking-wider font-semibold">Tags</p>
+      <div className="flex flex-wrap gap-1">
+        {ANGLES.map((angle) => (
+          <button
+            key={angle}
+            onClick={() => updateClipMeta(clipId, { cameraAngle: clip.cameraAngle === angle ? '' : angle })}
+            className={cn(
+              'px-2 py-0.5 rounded text-xs font-mono transition-colors',
+              clip.cameraAngle === angle
+                ? 'bg-accent-500 text-black font-bold'
+                : 'bg-white/5 text-white/35 hover:text-white/70 hover:bg-white/10'
+            )}
+          >
+            {angle}
+          </button>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {CLUBS.map((club) => (
+          <button
+            key={club}
+            onClick={() => updateClipMeta(clipId, { club: clip.club === club ? '' : club })}
+            className={cn(
+              'px-2 py-0.5 rounded text-xs transition-colors',
+              clip.club === club
+                ? 'bg-white/20 text-white font-semibold'
+                : 'bg-white/5 text-white/30 hover:text-white/60 hover:bg-white/10'
+            )}
+          >
+            {club}
+          </button>
+        ))}
       </div>
     </div>
   )
@@ -123,6 +174,20 @@ function ClipItem({ clip, isActive, onClick }: { clip: Clip; isActive: boolean; 
         {!thumbReady && (
           <div className="absolute inset-0 flex items-center justify-center">
             <Film size={18} className="text-white/20" />
+          </div>
+        )}
+        {(clip.cameraAngle || clip.club) && (
+          <div className="absolute bottom-1 right-1 flex gap-1">
+            {clip.cameraAngle && (
+              <span className="bg-accent-500/80 text-black text-xs font-bold font-mono px-1 py-0.5 rounded leading-none">
+                {clip.cameraAngle}
+              </span>
+            )}
+            {clip.club && (
+              <span className="bg-black/60 text-white/70 text-xs px-1 py-0.5 rounded leading-none">
+                {clip.club}
+              </span>
+            )}
           </div>
         )}
       </div>

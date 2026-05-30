@@ -19,9 +19,11 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 
 export const DEFAULT_STYLE: AnnotationStyle = {
   color: '#22c55e',
-  strokeWidth: 2,
+  strokeWidth: 3,
   opacity: 1
 }
+
+export const STROKE_WIDTHS = [2, 4, 6] as const
 
 export const TOOL_COLORS = [
   '#22c55e', // green

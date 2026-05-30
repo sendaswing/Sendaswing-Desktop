@@ -13,7 +13,9 @@ const electronAPI = {
     openVideo: (): Promise<string[]> => ipcRenderer.invoke('fs:open-video'),
     getRecordingsDir: (): Promise<string> => ipcRenderer.invoke('fs:get-recordings-dir'),
     readFileAsBuffer: (filePath: string): Promise<ArrayBuffer> =>
-      ipcRenderer.invoke('fs:read-file-as-buffer', filePath)
+      ipcRenderer.invoke('fs:read-file-as-buffer', filePath),
+    scanFolder: (): Promise<{ folderPath: string; files: Array<{ name: string; filePath: string }> } | null> =>
+      ipcRenderer.invoke('fs:scan-folder')
   },
   titlebar: {
     minimize: () => ipcRenderer.send('titlebar:minimize'),

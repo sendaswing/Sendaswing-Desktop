@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
-import type { CameraSlot, GridLayout } from '../types/camera'
+import type { CameraSlot, CameraAngle, GridLayout } from '../types/camera'
 
 interface CameraStore {
   availableDevices: MediaDeviceInfo[]
@@ -11,6 +11,7 @@ interface CameraStore {
   setStream: (slotIndex: number, stream: MediaStream | null) => void
   setSlotStatus: (slotIndex: number, status: CameraSlot['status'], error?: string) => void
   setGridLayout: (layout: GridLayout) => void
+  setCameraAngle: (slotIndex: number, angle: CameraAngle) => void
 }
 
 const defaultSlot = (index: number): CameraSlot => ({
@@ -19,7 +20,8 @@ const defaultSlot = (index: number): CameraSlot => ({
   label: `Camera ${index + 1}`,
   stream: null,
   status: 'idle',
-  error: null
+  error: null,
+  cameraAngle: ''
 })
 
 export const useCameraStore = create<CameraStore>()(
@@ -63,6 +65,12 @@ export const useCameraStore = create<CameraStore>()(
     setGridLayout: (layout) => {
       set((state) => {
         state.gridLayout = layout
+      })
+    },
+
+    setCameraAngle: (slotIndex, angle) => {
+      set((state) => {
+        state.slots[slotIndex].cameraAngle = angle
       })
     }
   }))

@@ -1,4 +1,5 @@
 export type GridLayout = '1x1' | '2x1' | '2x2'
+export type CameraAngle = 'FO' | 'DL' | 'Other' | ''
 
 export interface CameraSlot {
   index: number
@@ -7,4 +8,5 @@ export interface CameraSlot {
   stream: MediaStream | null
   status: 'idle' | 'streaming' | 'error'
   error: string | null
+  cameraAngle: CameraAngle
 }

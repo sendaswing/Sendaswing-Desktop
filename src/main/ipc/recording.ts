@@ -8,6 +8,8 @@ interface RecordingSession {
   stream: WriteStream
   filename: string
   cameraLabel: string
+  cameraAngle: string
+  club: string
   startTime: number
   path: string
 }
@@ -15,7 +17,7 @@ interface RecordingSession {
 const sessions = new Map<string, RecordingSession>()
 
 export function registerRecordingHandlers(): void {
-  ipcMain.handle('recording:init', (_event, { filename, cameraLabel }: { filename: string; cameraLabel: string }) => {
+  ipcMain.handle('recording:init', (_event, { filename, cameraLabel, cameraAngle, club }: { filename: string; cameraLabel: string; cameraAngle: string; club: string }) => {
     const dir = getRecordingsDir()
     mkdirSync(dir, { recursive: true })
 
@@ -27,6 +29,8 @@ export function registerRecordingHandlers(): void {
       stream,
       filename,
       cameraLabel,
+      cameraAngle: cameraAngle ?? '',
+      club: club ?? '',
       startTime: Date.now(),
       path: filePath
     })
@@ -59,6 +63,8 @@ export function registerRecordingHandlers(): void {
           thumbnailPath: null,
           recordedAt: new Date().toISOString(),
           cameraLabel: session.cameraLabel,
+          cameraAngle: session.cameraAngle,
+          club: session.club,
           tags: [],
           annotations: []
         })
