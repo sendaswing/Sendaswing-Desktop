@@ -5,7 +5,7 @@ import type { Annotation, Point } from '../../types/drawing'
 import { calcAngle } from '../../lib/drawing/tools'
 
 function pct(n: number) {
-  return `${n * 100}%`
+  return `${(n * 100).toFixed(4)}%`
 }
 
 function ArrowMarker({ id, color }: { id: string; color: string }) {
@@ -24,7 +24,7 @@ function AnnotationShape({ ann }: { ann: Annotation }) {
     stroke: style.color,
     strokeWidth: style.strokeWidth,
     opacity: style.opacity,
-    fill: 'none',
+    fill: 'none' as const,
     strokeLinecap: 'round' as const,
     strokeLinejoin: 'round' as const
   }
@@ -40,24 +40,16 @@ function AnnotationShape({ ann }: { ann: Annotation }) {
     return (
       <>
         <ArrowMarker id={markerId} color={style.color} />
-        <line
-          x1={pct(a.x)} y1={pct(a.y)} x2={pct(b.x)} y2={pct(b.y)}
-          {...strokeProps}
-          markerEnd={`url(#${markerId})`}
-        />
+        <line x1={pct(a.x)} y1={pct(a.y)} x2={pct(b.x)} y2={pct(b.y)}
+          {...strokeProps} markerEnd={`url(#${markerId})`} />
       </>
     )
   }
 
   if (ann.type === 'circle') {
     return (
-      <ellipse
-        cx={pct(ann.center.x)}
-        cy={pct(ann.center.y)}
-        rx={pct(ann.radius)}
-        ry={pct(ann.radius)}
-        {...strokeProps}
-      />
+      <ellipse cx={pct(ann.center.x)} cy={pct(ann.center.y)}
+        rx={pct(ann.radius)} ry={pct(ann.radius)} {...strokeProps} />
     )
   }
 
@@ -68,13 +60,8 @@ function AnnotationShape({ ann }: { ann: Annotation }) {
       <>
         <line x1={pct(vertex.x)} y1={pct(vertex.y)} x2={pct(p1.x)} y2={pct(p1.y)} {...strokeProps} />
         <line x1={pct(vertex.x)} y1={pct(vertex.y)} x2={pct(p2.x)} y2={pct(p2.y)} {...strokeProps} />
-        <text
-          x={pct(vertex.x)}
-          y={pct(vertex.y - 0.02)}
-          fill={style.color}
-          fontSize="12"
-          fontFamily="monospace"
-        >
+        <text x={pct(vertex.x)} y={pct(Math.max(0, vertex.y - 0.02))}
+          fill={style.color} fontSize="13" fontFamily="monospace" fontWeight="bold">
           {deg}°
         </text>
       </>
@@ -82,9 +69,7 @@ function AnnotationShape({ ann }: { ann: Annotation }) {
   }
 
   if (ann.type === 'freehand') {
-    const d = ann.points
-      .map((p, i) => `${i === 0 ? 'M' : 'L'}${pct(p.x)},${pct(p.y)}`)
-      .join(' ')
+    const d = ann.points.map((p, i) => `${i === 0 ? 'M' : 'L'}${pct(p.x)},${pct(p.y)}`).join(' ')
     return <path d={d} {...strokeProps} />
   }
 
@@ -92,11 +77,13 @@ function AnnotationShape({ ann }: { ann: Annotation }) {
 }
 
 export function DrawingCanvas() {
-  const { annotations, currentFrame, activeTool } = useAnalysisStore()
-  const { inProgressPoints, isDrawing, handlePointerDown, handlePointerMove, handlePointerUp } = useDrawing()
+  const { annotations, currentFrame, activeTool, activeStyle } = useAnalysisStore()
+  const { isDrawing, previewStart, previewEnd, anglePoints, handlePointerDown, handlePointerMove, handlePointerUp } = useDrawing()
 
   const frameAnnotations = useMemo(
-    () => annotations.flatMap((layer) => (layer.visible ? layer.annotations.filter((a) => a.frameIndex === currentFrame) : [])),
+    () => annotations.flatMap((layer) =>
+      layer.visible ? layer.annotations.filter((a) => a.frameIndex === currentFrame) : []
+    ),
     [annotations, currentFrame]
   )
 
@@ -105,24 +92,46 @@ export function DrawingCanvas() {
   return (
     <svg
       className="absolute inset-0 w-full h-full"
-      style={{ cursor }}
+      style={{ cursor, touchAction: 'none' }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
     >
+      {/* Committed annotations */}
       {frameAnnotations.map((ann) => (
         <AnnotationShape key={ann.id} ann={ann} />
       ))}
 
-      {isDrawing && inProgressPoints.length >= 1 && (
-        <circle
-          cx={pct(inProgressPoints[inProgressPoints.length - 1].x)}
-          cy={pct(inProgressPoints[inProgressPoints.length - 1].y)}
-          r="3"
-          fill="#22c55e"
-          opacity="0.8"
-        />
+      {/* Live drag preview */}
+      {isDrawing && previewStart && previewEnd && (
+        <>
+          {(activeTool === 'line' || activeTool === 'arrow') && (
+            <line
+              x1={pct(previewStart.x)} y1={pct(previewStart.y)}
+              x2={pct(previewEnd.x)} y2={pct(previewEnd.y)}
+              stroke={activeStyle.color} strokeWidth={activeStyle.strokeWidth}
+              opacity={0.7} strokeDasharray="6 3"
+            />
+          )}
+          {activeTool === 'circle' && (() => {
+            const dx = previewEnd.x - previewStart.x
+            const dy = previewEnd.y - previewStart.y
+            const r = Math.sqrt(dx * dx + dy * dy)
+            return (
+              <ellipse cx={pct(previewStart.x)} cy={pct(previewStart.y)}
+                rx={pct(r)} ry={pct(r)}
+                stroke={activeStyle.color} strokeWidth={activeStyle.strokeWidth}
+                fill="none" opacity={0.7} strokeDasharray="6 3" />
+            )
+          })()}
+        </>
       )}
+
+      {/* Angle in-progress dots */}
+      {activeTool === 'angle' && anglePoints.map((pt, i) => (
+        <circle key={i} cx={pct(pt.x)} cy={pct(pt.y)} r="4"
+          fill={activeStyle.color} opacity={0.9} />
+      ))}
     </svg>
   )
 }

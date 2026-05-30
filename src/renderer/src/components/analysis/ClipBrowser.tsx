@@ -1,9 +1,8 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { FolderOpen, Film } from 'lucide-react'
 import { useClipStore } from '../../store/clipStore'
 import { useAnalysisStore } from '../../store/analysisStore'
 import { cn } from '../../lib/utils/cn'
-import { formatDuration } from '../../lib/utils/formatTime'
 import type { Clip } from '../../types/clip'
 
 export function ClipBrowser() {
@@ -15,9 +14,9 @@ export function ClipBrowser() {
     if (!paths?.length) return
 
     for (const filePath of paths) {
-      const name = filePath.split('/').pop() ?? filePath
+      const name = filePath.split(/[\\/]/).pop() ?? filePath
       const clip: Clip = {
-        id: `clip-${Date.now()}-${Math.random()}`,
+        id: `clip-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         name,
         filePath,
         duration: 0,
@@ -50,7 +49,7 @@ export function ClipBrowser() {
         {clips.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-32 gap-2 text-white/20">
             <Film size={24} />
-            <span className="text-xs">No clips yet</span>
+            <span className="text-xs text-center px-4">Open a video file to begin</span>
           </div>
         ) : (
           clips.map((clip) => (
@@ -68,16 +67,69 @@ export function ClipBrowser() {
 }
 
 function ClipItem({ clip, isActive, onClick }: { clip: Clip; isActive: boolean; onClick: () => void }) {
+  const thumbCanvasRef = useRef<HTMLCanvasElement>(null)
+  const [thumbReady, setThumbReady] = useState(false)
+
+  useEffect(() => {
+    let revoke = ''
+    const canvas = thumbCanvasRef.current
+    if (!canvas) return
+
+    const generate = async () => {
+      try {
+        const buffer: ArrayBuffer = await (window as any).electronAPI.fs.readFileAsBuffer(clip.filePath)
+        const blob = new Blob([buffer])
+        const url = URL.createObjectURL(blob)
+        revoke = url
+
+        const video = document.createElement('video')
+        video.src = url
+        video.muted = true
+        video.preload = 'metadata'
+
+        video.onloadedmetadata = () => {
+          video.currentTime = Math.min(1, video.duration * 0.1)
+        }
+
+        video.onseeked = () => {
+          const ctx = canvas.getContext('2d')
+          if (!ctx) return
+          canvas.width = 192
+          canvas.height = 108
+          ctx.drawImage(video, 0, 0, 192, 108)
+          setThumbReady(true)
+          URL.revokeObjectURL(url)
+        }
+      } catch {}
+    }
+
+    generate()
+    return () => { if (revoke) URL.revokeObjectURL(revoke) }
+  }, [clip.filePath])
+
   return (
     <button
       onClick={onClick}
       className={cn(
-        'w-full text-left px-3 py-2 border-b border-white/5 transition-colors',
+        'w-full text-left border-b border-white/5 transition-colors overflow-hidden',
         isActive ? 'bg-accent-500/15 border-l-2 border-l-accent-500' : 'hover:bg-white/5'
       )}
     >
-      <p className="text-xs text-white/80 truncate font-medium">{clip.name}</p>
-      <p className="text-xs text-white/30 mt-0.5">{clip.cameraLabel}</p>
+      <div className="relative w-full aspect-video bg-black/60">
+        <canvas
+          ref={thumbCanvasRef}
+          className={cn('w-full h-full object-cover', thumbReady ? 'opacity-100' : 'opacity-0')}
+        />
+        {!thumbReady && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Film size={18} className="text-white/20" />
+          </div>
+        )}
+      </div>
+      <div className="px-2 py-1.5">
+        <p className="text-xs text-white/80 truncate font-medium">{clip.name}</p>
+        <p className="text-xs text-white/30">{clip.cameraLabel}</p>
+      </div>
     </button>
   )
 }
