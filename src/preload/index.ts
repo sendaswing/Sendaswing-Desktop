@@ -19,6 +19,11 @@ const electronAPI = {
     minimize: () => ipcRenderer.send('titlebar:minimize'),
     maximize: () => ipcRenderer.send('titlebar:maximize'),
     close: () => ipcRenderer.send('titlebar:close')
+  },
+  settings: {
+    getRecordingsDir: (): Promise<string> => ipcRenderer.invoke('settings:get-recordings-dir'),
+    setRecordingsDir: (): Promise<string | null> => ipcRenderer.invoke('settings:set-recordings-dir'),
+    openRecordingsDir: (): Promise<void> => ipcRenderer.invoke('settings:open-recordings-dir')
   }
 }
 

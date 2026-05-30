@@ -1,7 +1,8 @@
-import { ipcMain, app } from 'electron'
+import { ipcMain } from 'electron'
 import { createWriteStream, mkdirSync } from 'fs'
 import { join } from 'path'
 import type { WriteStream } from 'fs'
+import { getRecordingsDir } from './settings'
 
 interface RecordingSession {
   stream: WriteStream
@@ -15,7 +16,7 @@ const sessions = new Map<string, RecordingSession>()
 
 export function registerRecordingHandlers(): void {
   ipcMain.handle('recording:init', (_event, { filename, cameraLabel }: { filename: string; cameraLabel: string }) => {
-    const dir = join(app.getPath('userData'), 'recordings')
+    const dir = getRecordingsDir()
     mkdirSync(dir, { recursive: true })
 
     const filePath = join(dir, filename)

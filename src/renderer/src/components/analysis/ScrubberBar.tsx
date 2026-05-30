@@ -12,13 +12,15 @@ export function ScrubberBar({ onSeek }: ScrubberBarProps) {
   const rafPending = useRef(false)
   const pendingFrame = useRef(0)
 
+  const safeTotal = isFinite(totalFrames) && totalFrames > 1 ? totalFrames : 0
+
   const getFrameFromPointer = useCallback((clientX: number): number => {
     const track = trackRef.current
-    if (!track || totalFrames === 0) return 0
+    if (!track || safeTotal === 0) return 0
     const rect = track.getBoundingClientRect()
     const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
-    return Math.round(ratio * (totalFrames - 1))
-  }, [totalFrames])
+    return Math.round(ratio * (safeTotal - 1))
+  }, [safeTotal])
 
   const flushSeek = useCallback(() => {
     rafPending.current = false
@@ -48,7 +50,7 @@ export function ScrubberBar({ onSeek }: ScrubberBarProps) {
     isDragging.current = false
   }, [])
 
-  const progress = totalFrames > 1 ? currentFrame / (totalFrames - 1) : 0
+  const progress = safeTotal > 1 ? Math.min(1, currentFrame / (safeTotal - 1)) : 0
 
   return (
     <div className="flex flex-col gap-1 px-4 py-2 select-none">

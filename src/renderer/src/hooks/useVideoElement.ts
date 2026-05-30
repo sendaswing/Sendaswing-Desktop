@@ -4,13 +4,15 @@ import { useAnalysisStore } from '../store/analysisStore'
 export function useVideoElement() {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const blobUrlRef = useRef<string | null>(null)
+  const fallbackDurationRef = useRef<number>(0)
   const [isLoaded, setIsLoaded] = useState(false)
 
   const { setCurrentFrame, setTotalFrames, setFps, setIsPlaying } = useAnalysisStore()
 
-  const loadFile = useCallback(async (filePath: string) => {
+  const loadFile = useCallback(async (filePath: string, fallbackDuration?: number) => {
     setIsLoaded(false)
     setCurrentFrame(0)
+    fallbackDurationRef.current = fallbackDuration ?? 0
 
     if (blobUrlRef.current) {
       URL.revokeObjectURL(blobUrlRef.current)
@@ -51,7 +53,8 @@ export function useVideoElement() {
     if (!video) return
     const fps = useAnalysisStore.getState().fps
     video.pause()
-    video.currentTime = Math.min(video.duration, video.currentTime + 1 / fps)
+    const totalFrames = useAnalysisStore.getState().totalFrames
+    video.currentTime = Math.min(totalFrames / fps, video.currentTime + 1 / fps)
   }, [])
 
   const stepBackward = useCallback(() => {
@@ -67,15 +70,21 @@ export function useVideoElement() {
     videoRef.current = el
 
     el.onloadedmetadata = () => {
-      const detectedFps = 30
-      const frames = Math.round(el.duration * detectedFps)
-      setFps(detectedFps)
+      const fps = 30
+      // WebM from MediaRecorder has no duration in header → falls back to recorded wall-clock duration
+      const rawDuration = el.duration
+      const duration = isFinite(rawDuration) && rawDuration > 0
+        ? rawDuration
+        : fallbackDurationRef.current
+
+      const frames = duration > 0 ? Math.round(duration * fps) : 0
+      setFps(fps)
       setTotalFrames(frames)
       setIsLoaded(true)
     }
 
     el.ontimeupdate = () => {
-      const fps = useAnalysisStore.getState().fps
+      const { fps } = useAnalysisStore.getState()
       setCurrentFrame(Math.round(el.currentTime * fps))
     }
 
