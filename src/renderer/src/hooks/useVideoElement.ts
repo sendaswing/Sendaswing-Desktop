@@ -41,6 +41,7 @@ export function useVideoElement() {
   const play = useCallback((speed: number) => {
     const video = videoRef.current
     if (!video) return
+    if (video.ended) video.currentTime = 0
     video.playbackRate = speed
     video.play()
   }, [])

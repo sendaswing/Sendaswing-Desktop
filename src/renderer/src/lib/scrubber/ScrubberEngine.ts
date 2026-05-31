@@ -74,7 +74,7 @@ export class ScrubberEngine {
         this.decoder.setFirstTimestampUs(this.samples[0].compositionTimestampUs)
       }
 
-      await this.seekAsync(0)
+      await this.seekAsync(Math.min(1, this.frameCount - 1))
       this.preloadAll()
 
       return {
@@ -92,10 +92,11 @@ export class ScrubberEngine {
       this.fps = info.fps
       this.isWebmExtracted = true
 
-      const frame0 = this.cache.get(0)
-      if (frame0) this.renderBitmap(frame0)
-      this.currentFrame = 0
-      this.onFrameChange?.(0)
+      const startFrame = Math.min(1, this.frameCount - 1)
+      const bmp = this.cache.get(startFrame)
+      if (bmp) this.renderBitmap(bmp)
+      this.currentFrame = startFrame
+      this.onFrameChange?.(startFrame)
 
       return {
         frameCount: info.frameCount,
@@ -235,6 +236,12 @@ export class ScrubberEngine {
       this.playStartFrame = this.currentFrame
       this.playStartTime = performance.now()
       return
+    }
+    // Restart from the beginning when play is pressed after reaching the end
+    if (this.currentFrame >= this.frameCount - 1) {
+      const restartFrame = Math.min(1, this.frameCount - 1)
+      this.seek(restartFrame)
+      this.currentFrame = restartFrame
     }
     this.isPlayingInternal = true
     this.playbackSpeed = speed
