@@ -2,12 +2,14 @@ import { contextBridge, ipcRenderer } from 'electron'
 
 const electronAPI = {
   recording: {
-    init: (opts: { filename: string; cameraLabel: string }) =>
+    init: (opts: { filename: string; cameraLabel: string; cameraAngle: string; club: string }) =>
       ipcRenderer.invoke('recording:init', opts),
     chunk: (sessionId: string, chunk: Uint8Array) =>
       ipcRenderer.invoke('recording:chunk', { sessionId, chunk }),
     finalize: (sessionId: string) =>
-      ipcRenderer.invoke('recording:finalize', { sessionId })
+      ipcRenderer.invoke('recording:finalize', { sessionId }),
+    nextSwingNumber: (): Promise<number> =>
+      ipcRenderer.invoke('recording:next-swing-number')
   },
   fs: {
     openVideo: (): Promise<string[]> => ipcRenderer.invoke('fs:open-video'),

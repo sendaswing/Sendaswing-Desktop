@@ -19,24 +19,26 @@ export function RecordingControls() {
   const { isRecordingAll, pendingClub, setPendingClub } = useRecordingStore()
   const { startAll, stopAll } = useRecorder()
 
+  const activeSlots = slots.filter((s) => s.stream && s.status === 'streaming')
+  const missingAngle = activeSlots.some((s) => !s.cameraAngle)
+  const canRecord = activeSlots.length > 0 && !missingAngle
+
   const handleRecord = async () => {
     if (isRecordingAll) {
       await stopAll()
       return
     }
+    if (!canRecord) return
 
-    const activeSlots = slots
-      .filter((s) => s.stream && s.status === 'streaming')
-      .map((s) => ({
+    await startAll(
+      activeSlots.map((s) => ({
         index: s.index,
         stream: s.stream!,
         label: s.label,
         cameraAngle: s.cameraAngle,
         club: pendingClub
       }))
-
-    if (activeSlots.length === 0) return
-    await startAll(activeSlots)
+    )
   }
 
   return (
@@ -82,13 +84,21 @@ export function RecordingControls() {
 
         <div className="flex-1" />
 
+        {!isRecordingAll && missingAngle && activeSlots.length > 0 && (
+          <span className="text-xs text-amber-400/70">Set angle first</span>
+        )}
+
         <button
           onClick={handleRecord}
+          disabled={!isRecordingAll && !canRecord}
+          title={!isRecordingAll && missingAngle ? 'Set camera angle before recording' : undefined}
           className={cn(
             'flex items-center gap-2 px-4 py-1.5 rounded font-semibold text-sm transition-colors',
             isRecordingAll
               ? 'bg-red-600 hover:bg-red-700 text-white'
-              : 'bg-accent-500 hover:bg-accent-600 text-black'
+              : canRecord
+              ? 'bg-accent-500 hover:bg-accent-600 text-black'
+              : 'bg-white/10 text-white/25 cursor-not-allowed'
           )}
         >
           {isRecordingAll ? (
