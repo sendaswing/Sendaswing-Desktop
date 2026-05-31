@@ -19,11 +19,13 @@ export class RecordingSession {
   }
 
   async start(stream: MediaStream): Promise<string> {
-    const mimeType = MediaRecorder.isTypeSupported('video/mp4;codecs=h264')
-      ? 'video/mp4;codecs=h264'
-      : MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-      ? 'video/webm;codecs=vp9'
-      : 'video/webm'
+    const mimeType =
+      MediaRecorder.isTypeSupported('video/mp4;codecs=avc1.42E01E') ? 'video/mp4;codecs=avc1.42E01E' :
+      MediaRecorder.isTypeSupported('video/mp4;codecs=avc1')        ? 'video/mp4;codecs=avc1' :
+      MediaRecorder.isTypeSupported('video/mp4;codecs=h264')        ? 'video/mp4;codecs=h264' :
+      MediaRecorder.isTypeSupported('video/mp4')                    ? 'video/mp4' :
+      MediaRecorder.isTypeSupported('video/webm;codecs=vp9')        ? 'video/webm;codecs=vp9' :
+      'video/webm'
 
     const now = new Date()
     const mm = String(now.getMonth() + 1).padStart(2, '0')

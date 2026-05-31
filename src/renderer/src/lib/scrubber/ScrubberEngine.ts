@@ -1,6 +1,7 @@
 import { FrameCache } from './FrameCache'
 import { FrameDecoder } from './FrameDecoder'
 import { ChunkDemuxer, type SampleWithData } from './ChunkDemuxer'
+import { VideoFrameExtractor } from './VideoFrameExtractor'
 
 export interface ScrubberLoadResult {
   frameCount: number
@@ -30,6 +31,13 @@ export class ScrubberEngine {
 
   private preloadIdleId: number | null = null
 
+  // Pending seek queue: ensures only one decode is in flight at a time
+  private seekInFlight = false
+  private pendingSeekTarget: number | null = null
+
+  // Set when frames were captured via VideoFrameExtractor (no decoder available)
+  private isWebmExtracted = false
+
   onFrameChange: ((frame: number) => void) | null = null
   onPlayStateChange: ((playing: boolean) => void) | null = null
   onPreloadProgress: ((pct: number) => void) | null = null
@@ -47,33 +55,55 @@ export class ScrubberEngine {
     this.stop()
     this.cancelPreload()
     this.cache.clear()
+    this.isWebmExtracted = false
+    this.seekInFlight = false
+    this.pendingSeekTarget = null
 
-    const result = await this.demuxer.load(fileBuffer)
-    this.samples = result.samples
-    this.fps = result.fps
-    this.frameCount = this.samples.length
+    try {
+      const result = await this.demuxer.load(fileBuffer)
+      this.samples = result.samples
+      this.fps = result.fps
+      this.frameCount = this.samples.length
 
-    // Size the cache to hold all frames for short clips, cap at 1200 for longer ones
-    this.cache.resize(Math.min(this.frameCount, 1200))
+      this.cache.resize(Math.min(this.frameCount, 1200))
 
-    await this.decoder.init(result.codecConfig)
-    this.decoder.setFps(this.fps)
+      await this.decoder.init(result.codecConfig)
+      this.decoder.setFps(this.fps)
 
-    if (this.samples.length > 0) {
-      this.decoder.setFirstTimestampUs(this.samples[0].compositionTimestampUs)
-    }
+      if (this.samples.length > 0) {
+        this.decoder.setFirstTimestampUs(this.samples[0].compositionTimestampUs)
+      }
 
-    await this.seekAsync(0)
+      await this.seekAsync(0)
+      this.preloadAll()
 
-    // Kick off background preload of all frames
-    this.preloadAll()
+      return {
+        frameCount: this.frameCount,
+        fps: this.fps,
+        duration: result.duration,
+        codedWidth: result.codecConfig.codedWidth,
+        codedHeight: result.codecConfig.codedHeight
+      }
+    } catch {
+      // Non-MP4 (WebM) or parse failure: extract frames via offscreen video element
+      const extractor = new VideoFrameExtractor()
+      const info = await extractor.extract(fileBuffer, this.cache, (pct) => this.onPreloadProgress?.(pct))
+      this.frameCount = info.frameCount
+      this.fps = info.fps
+      this.isWebmExtracted = true
 
-    return {
-      frameCount: this.frameCount,
-      fps: this.fps,
-      duration: result.duration,
-      codedWidth: result.codecConfig.codedWidth,
-      codedHeight: result.codecConfig.codedHeight
+      const frame0 = this.cache.get(0)
+      if (frame0) this.renderBitmap(frame0)
+      this.currentFrame = 0
+      this.onFrameChange?.(0)
+
+      return {
+        frameCount: info.frameCount,
+        fps: info.fps,
+        duration: info.duration,
+        codedWidth: info.width,
+        codedHeight: info.height
+      }
     }
   }
 
@@ -84,17 +114,14 @@ export class ScrubberEngine {
     }
   }
 
-  // Preloads all frames in the background using idle callbacks.
-  // Decodes one keyframe group per idle slice to avoid blocking the main thread.
   private preloadAll(): void {
     if (typeof requestIdleCallback === 'undefined') return
-    if (this.frameCount === 0) return
+    if (this.frameCount === 0 || this.isWebmExtracted) return
 
     const keyframeIndices = this.demuxer.keyframeIndices
-    let kfGroupIdx = 0 // which keyframe group we're currently preloading
+    let kfGroupIdx = 0
 
     const step = (deadline: IdleDeadline) => {
-      // Process as many keyframe groups as idle time allows
       while (kfGroupIdx < keyframeIndices.length && deadline.timeRemaining() > 4) {
         const kfStart = keyframeIndices[kfGroupIdx]
         const kfEnd = kfGroupIdx + 1 < keyframeIndices.length
@@ -133,6 +160,12 @@ export class ScrubberEngine {
       return Promise.resolve()
     }
 
+    if (this.isWebmExtracted) {
+      this.currentFrame = target
+      this.onFrameChange?.(target)
+      return Promise.resolve()
+    }
+
     return new Promise((resolve) => {
       const kf = this.demuxer.findNearestKeyframe(target)
       this.decoder.reset()
@@ -149,19 +182,51 @@ export class ScrubberEngine {
   seek(frameIndex: number): void {
     const target = this.clamp(frameIndex)
     this.currentFrame = target
+    this.onFrameChange?.(target)
+
     const cached = this.cache.get(target)
     if (cached) {
       this.renderBitmap(cached)
-      this.onFrameChange?.(target)
-    } else {
-      const kf = this.demuxer.findNearestKeyframe(target)
-      this.decoder.reset()
-      this.decoder.decodeFrom(this.samples, kf, target, () => {
-        const bmp = this.cache.get(target)
-        if (bmp) this.renderBitmap(bmp)
-        this.onFrameChange?.(target)
-      })
+      return
     }
+
+    if (this.isWebmExtracted) return
+
+    if (this.seekInFlight) {
+      this.pendingSeekTarget = target
+      return
+    }
+    this.startSeek(target)
+  }
+
+  private startSeek(target: number): void {
+    this.cancelPreload()
+    this.seekInFlight = true
+    const kf = this.demuxer.findNearestKeyframe(target)
+    this.decoder.reset()
+    this.decoder.decodeFrom(this.samples, kf, target, () => {
+      this.seekInFlight = false
+      const bmp = this.cache.get(target)
+      if (bmp) this.renderBitmap(bmp)
+
+      if (this.pendingSeekTarget !== null) {
+        const next = this.pendingSeekTarget
+        this.pendingSeekTarget = null
+        const nextCached = this.cache.get(next)
+        if (nextCached) {
+          this.currentFrame = next
+          this.renderBitmap(nextCached)
+          this.onFrameChange?.(next)
+          this.preloadAll()
+        } else {
+          this.currentFrame = next
+          this.onFrameChange?.(next)
+          this.startSeek(next)
+        }
+      } else {
+        this.preloadAll()
+      }
+    })
   }
 
   play(speed = 1): void {

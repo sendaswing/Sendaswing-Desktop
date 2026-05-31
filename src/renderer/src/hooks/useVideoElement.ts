@@ -34,6 +34,7 @@ export function useVideoElement() {
   const seekToFrame = useCallback((frame: number, fps: number) => {
     const video = videoRef.current
     if (!video || !isLoaded) return
+    setCurrentFrame(frame)
     video.currentTime = frame / fps
   }, [isLoaded])
 
