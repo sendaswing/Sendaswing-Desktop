@@ -64,7 +64,6 @@ export function ClipBrowser() {
               key={clip.id}
               clip={clip}
               isActive={activeClip?.id === clip.id}
-              onClick={() => setActiveClip(clip)}
             />
           ))
         )}
@@ -119,7 +118,7 @@ function TagEditor({ clipId }: { clipId: string }) {
   )
 }
 
-function ClipItem({ clip, isActive, onClick }: { clip: Clip; isActive: boolean; onClick: () => void }) {
+function ClipItem({ clip, isActive }: { clip: Clip; isActive: boolean }) {
   const thumbCanvasRef = useRef<HTMLCanvasElement>(null)
   const [thumbReady, setThumbReady] = useState(false)
 
@@ -161,12 +160,13 @@ function ClipItem({ clip, isActive, onClick }: { clip: Clip; isActive: boolean; 
   }, [clip.filePath])
 
   return (
-    <button
-      onClick={onClick}
+    <div
       draggable
       onDragStart={(e) => e.dataTransfer.setData('text/plain', `${clip.filePath}\n${clip.name}`)}
+      onContextMenu={(e) => e.preventDefault()}
+      title="Drag to load into a player"
       className={cn(
-        'w-full text-left border-b border-white/5 transition-colors overflow-hidden',
+        'w-full text-left border-b border-white/5 transition-colors overflow-hidden cursor-grab active:cursor-grabbing select-none',
         isActive ? 'bg-accent-500/15 border-l-2 border-l-accent-500' : 'hover:bg-white/5'
       )}
     >
@@ -199,6 +199,6 @@ function ClipItem({ clip, isActive, onClick }: { clip: Clip; isActive: boolean; 
         <p className="text-xs text-white/80 truncate font-medium">{clip.name}</p>
         <p className="text-xs text-white/30">{clip.cameraLabel}</p>
       </div>
-    </button>
+    </div>
   )
 }
