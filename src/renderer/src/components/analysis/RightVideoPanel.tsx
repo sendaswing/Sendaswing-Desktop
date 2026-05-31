@@ -188,6 +188,7 @@ export function RightVideoPanel() {
 
       <ScrubberBar
         onSeek={handleSeek}
+        onScrubStart={handlePause}
         currentFrame={currentFrame}
         totalFrames={totalFrames}
         preloadProgress={loadFailed ? 1 : preloadProgress}

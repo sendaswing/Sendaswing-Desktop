@@ -138,10 +138,16 @@ function ClipItem({ clip, isActive }: { clip: Clip; isActive: boolean }) {
         video.src = url
         video.muted = true
         video.preload = 'metadata'
+        video.load()
 
         video.onloadedmetadata = () => {
-          video.currentTime = Math.min(1, video.duration * 0.1)
+          const seekTo = isFinite(video.duration) && video.duration > 0
+            ? Math.min(1, video.duration * 0.1)
+            : 0.5
+          video.currentTime = seekTo
         }
+
+        video.onerror = () => { URL.revokeObjectURL(url) }
 
         video.onseeked = () => {
           const ctx = canvas.getContext('2d')

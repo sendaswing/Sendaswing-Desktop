@@ -152,7 +152,7 @@ export function VideoPlayer({ clipPath, clipDuration }: VideoPlayerProps) {
         )}
       </div>
 
-      <ScrubberBar onSeek={handleSeek} preloadProgress={loadFailed ? 1 : preloadProgress} />
+      <ScrubberBar onSeek={handleSeek} onScrubStart={handlePause} preloadProgress={loadFailed ? 1 : preloadProgress} />
       <PlaybackControls
         onPlay={handlePlay}
         onPause={handlePause}
