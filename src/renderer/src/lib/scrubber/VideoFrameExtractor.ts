@@ -44,11 +44,14 @@ export class VideoFrameExtractor {
         video.playbackRate = 2
 
         await new Promise<void>((res) => {
-          const onFrame = async (_now: number, meta: any) => {
+          const onFrame = (_now: number, meta: any) => {
             const frameIdx = Math.min(Math.round((meta.mediaTime as number) * fps), frameCount - 1)
             try {
-              const bmp = await createImageBitmap(video)
-              cache.put(frameIdx, bmp)
+              // OffscreenCanvas.drawImage bypasses the GPU capture buffer pool entirely,
+              // avoiding "Failed to reserve output capture buffer" errors on Windows.
+              const oc = new OffscreenCanvas(video.videoWidth || 1280, video.videoHeight || 720)
+              oc.getContext('2d')!.drawImage(video, 0, 0)
+              cache.put(frameIdx, oc.transferToImageBitmap())
             } catch { /* skip frame if capture fails */ }
             onProgress?.(frameIdx / Math.max(frameCount - 1, 1))
             if (frameIdx >= frameCount - 1 || video.ended) { video.pause(); res(); return }

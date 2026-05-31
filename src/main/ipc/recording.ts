@@ -80,7 +80,7 @@ export function registerRecordingHandlers(): void {
         sessions.delete(sessionId)
         const duration = (Date.now() - session.startTime) / 1000
         resolve({
-          id: `clip-${Date.now()}`,
+          id: `clip-${Date.now()}-${Math.random().toString(36).slice(2)}`,
           name: session.filename,
           filePath: session.path,
           duration,
