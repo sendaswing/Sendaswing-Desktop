@@ -12,7 +12,7 @@ const electronAPI = {
       ipcRenderer.invoke('recording:next-swing-number')
   },
   fs: {
-    openVideo: (): Promise<string[]> => ipcRenderer.invoke('fs:open-video'),
+    openVideo: (defaultPath?: string): Promise<string[]> => ipcRenderer.invoke('fs:open-video', defaultPath),
     getRecordingsDir: (): Promise<string> => ipcRenderer.invoke('fs:get-recordings-dir'),
     readFileAsBuffer: (filePath: string): Promise<ArrayBuffer> =>
       ipcRenderer.invoke('fs:read-file-as-buffer', filePath),

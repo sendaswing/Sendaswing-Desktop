@@ -5,10 +5,11 @@ import { join, extname, basename } from 'path'
 const VIDEO_EXTS = new Set(['.mp4', '.mov', '.webm', '.m4v', '.avi'])
 
 export function registerFilesystemHandlers(): void {
-  ipcMain.handle('fs:open-video', async (_event) => {
+  ipcMain.handle('fs:open-video', async (_event, defaultPath?: string) => {
     const result = await dialog.showOpenDialog({
       filters: [{ name: 'Video', extensions: ['mp4', 'mov', 'webm', 'm4v', 'avi'] }],
-      properties: ['openFile', 'multiSelections']
+      properties: ['openFile', 'multiSelections'],
+      defaultPath: defaultPath || undefined
     })
     return result.canceled ? [] : result.filePaths
   })

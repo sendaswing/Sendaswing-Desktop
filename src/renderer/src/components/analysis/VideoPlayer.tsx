@@ -1,11 +1,13 @@
-import React, { useCallback, useRef, useEffect } from 'react'
+import React, { useCallback, useRef, useEffect, useState } from 'react'
 import { useScrubber } from '../../hooks/useScrubber'
 import { useVideoElement } from '../../hooks/useVideoElement'
 import { DrawingCanvas } from './DrawingCanvas'
 import { ScrubberBar } from './ScrubberBar'
 import { PlaybackControls } from './PlaybackControls'
 import { useAnalysisStore } from '../../store/analysisStore'
+import { useClipStore } from '../../store/clipStore'
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
+import type { Clip } from '../../types/clip'
 
 interface VideoPlayerProps {
   clipPath?: string | null
@@ -19,7 +21,9 @@ export function VideoPlayer({ clipPath, clipDuration }: VideoPlayerProps) {
   // HTML5 fallback for unsupported codecs
   const { attachVideo, isLoaded: html5Loaded, loadFile, seekToFrame, play: html5Play, pause: html5Pause, stepForward: html5StepForward, stepBackward: html5StepBackward } = useVideoElement()
 
-  const { playbackSpeed, currentFrame, totalFrames, fps, isPlaying } = useAnalysisStore()
+  const { playbackSpeed, currentFrame, totalFrames, fps, isPlaying, setActiveClip } = useAnalysisStore()
+  const { addClip } = useClipStore()
+  const [isDragOver, setIsDragOver] = useState(false)
 
   useEffect(() => {
     if (!clipPath) return
@@ -55,6 +59,25 @@ export function VideoPlayer({ clipPath, clipDuration }: VideoPlayerProps) {
     else stepBackward()
   }, [loadFailed, html5StepBackward, stepBackward])
 
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragOver(false)
+    // Native OS file drop only (internal drags are handled by RightVideoPanel)
+    const file = e.dataTransfer.files[0]
+    const filePath = file && (file as any).path
+    if (!filePath) return
+    const clip: Clip = {
+      id: `drop-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      name: file.name,
+      filePath,
+      duration: 0, fps: 30, frameCount: 0, thumbnailPath: null,
+      recordedAt: new Date().toISOString(),
+      cameraLabel: 'Imported', cameraAngle: '', club: '', tags: [], annotations: []
+    }
+    addClip(clip)
+    setActiveClip(clip)
+  }, [addClip, setActiveClip])
+
   useKeyboardShortcuts({
     onTogglePlay: () => {
       if (isPlaying) handlePause()
@@ -71,7 +94,12 @@ export function VideoPlayer({ clipPath, clipDuration }: VideoPlayerProps) {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="relative flex-1 min-h-0 bg-black overflow-hidden">
+      <div
+        className={`relative flex-1 min-h-0 bg-black overflow-hidden transition-shadow ${isDragOver ? 'ring-2 ring-inset ring-accent-400/60' : ''}`}
+        onDragOver={(e) => { e.preventDefault(); setIsDragOver(true) }}
+        onDragLeave={() => setIsDragOver(false)}
+        onDrop={handleDrop}
+      >
         {/* WebCodecs canvas — hidden when falling back to HTML5 */}
         <canvas
           ref={canvasRef}
@@ -91,8 +119,13 @@ export function VideoPlayer({ clipPath, clipDuration }: VideoPlayerProps) {
         {clipPath && effectivelyLoaded && <DrawingCanvas />}
 
         {!clipPath && (
-          <div className="absolute inset-0 flex items-center justify-center text-white/20 text-sm select-none">
-            Select a clip from the left panel
+          <div className="absolute inset-0 flex items-center justify-center text-white/20 text-sm select-none pointer-events-none">
+            {isDragOver ? 'Drop to load' : 'Select a clip from the left panel or drop a file here'}
+          </div>
+        )}
+        {clipPath && isDragOver && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-white/60 text-sm select-none pointer-events-none">
+            Drop to replace clip
           </div>
         )}
       </div>

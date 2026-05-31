@@ -7,11 +7,23 @@ import { DrawingCanvas } from './DrawingCanvas'
 import { useComparisonStore } from '../../store/comparisonStore'
 import { useAnalysisStore } from '../../store/analysisStore'
 import { useClipStore } from '../../store/clipStore'
+import { useSettingsStore } from '../../store/settingsStore'
 import type { Clip } from '../../types/clip'
 import type { Annotation, AnnotationLayer } from '../../types/drawing'
-import { FolderSearch } from 'lucide-react'
+import { FolderSearch, FolderOpen } from 'lucide-react'
 
 const mkDefaultLayer = (): AnnotationLayer => ({ id: 'right-default', name: 'Layer 1', annotations: [], visible: true })
+
+function makeDropClip(filePath: string, name: string, prefix: string): Clip {
+  return {
+    id: `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    name,
+    filePath,
+    duration: 0, fps: 30, frameCount: 0, thumbnailPath: null,
+    recordedAt: new Date().toISOString(),
+    cameraLabel: 'Imported', cameraAngle: '', club: '', tags: [], annotations: []
+  }
+}
 
 export function RightVideoPanel() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -23,6 +35,7 @@ export function RightVideoPanel() {
   const [isPlaying, setIsPlaying] = useState(false)
   const [playbackSpeed, setPlaybackSpeed] = useState(1)
   const [annotations, setAnnotations] = useState<AnnotationLayer[]>([mkDefaultLayer()])
+  const [isDragOver, setIsDragOver] = useState(false)
 
   const { isLoaded, loadFailed, preloadProgress, loadClip, seek, play, pause, stepForward, stepBackward } = useScrubber(canvasRef, {
     onFrameChange: setCurrentFrame,
@@ -35,6 +48,7 @@ export function RightVideoPanel() {
 
   const { rightClip, setRightClip, isSynced, leftFrame } = useComparisonStore()
   const { activeClip } = useAnalysisStore()
+  const { addClip } = useClipStore()
 
   useEffect(() => {
     if (!rightClip) return
@@ -75,6 +89,30 @@ export function RightVideoPanel() {
     else stepBackward()
   }, [loadFailed, html5StepBackward, stepBackward])
 
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragOver(false)
+
+    // Internal drag from ClipBrowser (text/plain = "filePath\nname")
+    const text = e.dataTransfer.getData('text/plain')
+    if (text) {
+      const [filePath, name] = text.split('\n')
+      if (filePath) {
+        const existing = useClipStore.getState().clips.find((c) => c.filePath === filePath)
+        setRightClip(existing ?? makeDropClip(filePath, name || filePath.split('/').pop()!, 'drop-r'))
+        return
+      }
+    }
+
+    // Native OS file drop
+    const file = e.dataTransfer.files[0]
+    const filePath = file && (file as any).path
+    if (!filePath) return
+    const clip = makeDropClip(filePath, file.name, 'drop-r')
+    addClip(clip)
+    setRightClip(clip)
+  }, [addClip, setRightClip])
+
   // Sync effect — mirror left panel scrub position to right panel
   useEffect(() => {
     if (!isSynced || !rightClip || totalFrames === 0) return
@@ -96,7 +134,12 @@ export function RightVideoPanel() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="relative flex-1 min-h-0 bg-black overflow-hidden">
+      <div
+        className={`relative flex-1 min-h-0 bg-black overflow-hidden transition-shadow ${isDragOver ? 'ring-2 ring-inset ring-accent-400/60' : ''}`}
+        onDragOver={(e) => { e.preventDefault(); setIsDragOver(true) }}
+        onDragLeave={() => setIsDragOver(false)}
+        onDrop={handleDrop}
+      >
         <canvas
           ref={canvasRef}
           className={`w-full h-full object-contain ${loadFailed ? 'hidden' : ''}`}
@@ -120,6 +163,12 @@ export function RightVideoPanel() {
         )}
 
         {!rightClip && <RightClipPicker />}
+
+        {rightClip && isDragOver && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-white/60 text-sm select-none pointer-events-none">
+            Drop to replace clip
+          </div>
+        )}
 
         {rightClip && effectivelyLoaded && (
           <div className="absolute top-2 right-2 flex gap-1">
@@ -160,7 +209,7 @@ export function RightVideoPanel() {
 }
 
 function RightClipPicker() {
-  const { clips } = useClipStore()
+  const { clips, addClip } = useClipStore()
   const { setRightClip } = useComparisonStore()
   const [scanning, setScanning] = useState(false)
 
@@ -174,21 +223,33 @@ function RightClipPicker() {
           id: `clip-${Date.now()}-${Math.random().toString(36).slice(2)}`,
           name: f.name,
           filePath: f.filePath,
-          duration: 0,
-          fps: 30,
-          frameCount: 0,
-          thumbnailPath: null,
+          duration: 0, fps: 30, frameCount: 0, thumbnailPath: null,
           recordedAt: new Date().toISOString(),
-          cameraLabel: 'Scanned',
-          cameraAngle: '',
-          club: '',
-          tags: [],
-          annotations: []
+          cameraLabel: 'Scanned', cameraAngle: '', club: '', tags: [], annotations: []
         }
-        useClipStore.getState().addClip(clip)
+        addClip(clip)
       }
     } finally {
       setScanning(false)
+    }
+  }
+
+  const handleOpenFile = async () => {
+    const { libraryDir } = useSettingsStore.getState()
+    const paths: string[] = await (window as any).electronAPI?.fs.openVideo(libraryDir || undefined) ?? []
+    if (!paths.length) return
+    for (const filePath of paths) {
+      const name = filePath.split(/[\\/]/).pop() ?? filePath
+      const clip: Clip = {
+        id: `open-r-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        name,
+        filePath,
+        duration: 0, fps: 30, frameCount: 0, thumbnailPath: null,
+        recordedAt: new Date().toISOString(),
+        cameraLabel: 'Imported', cameraAngle: '', club: '', tags: [], annotations: []
+      }
+      addClip(clip)
+      setRightClip(clip)
     }
   }
 
@@ -196,6 +257,12 @@ function RightClipPicker() {
     <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white/30 p-4">
       <span className="text-sm">Select a comparison clip</span>
       <div className="flex gap-2">
+        <button
+          onClick={handleOpenFile}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-white/5 hover:bg-white/10 text-xs text-white/50 hover:text-white/80 transition-colors"
+        >
+          <FolderOpen size={13} /> Open File
+        </button>
         <button
           onClick={handleScanFolder}
           disabled={scanning}
@@ -219,6 +286,7 @@ function RightClipPicker() {
           ))}
         </div>
       )}
+      <p className="text-xs text-white/20 mt-1">or drag a clip from the left panel</p>
     </div>
   )
 }

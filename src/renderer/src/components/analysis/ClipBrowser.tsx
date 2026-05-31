@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { FolderOpen, Film } from 'lucide-react'
 import { useClipStore } from '../../store/clipStore'
 import { useAnalysisStore } from '../../store/analysisStore'
+import { useSettingsStore } from '../../store/settingsStore'
 import { cn } from '../../lib/utils/cn'
 import type { Clip, CameraAngle, ClubType } from '../../types/clip'
 
@@ -11,9 +12,10 @@ const CLUBS: ClubType[] = ['Driver', 'Iron', 'Wedge', 'FW', 'Hybrid', 'Putt']
 export function ClipBrowser() {
   const { clips, addClip } = useClipStore()
   const { activeClip, setActiveClip } = useAnalysisStore()
+  const { libraryDir } = useSettingsStore()
 
   const openFile = async () => {
-    const paths: string[] = await (window as any).electronAPI?.fs.openVideo()
+    const paths: string[] = await (window as any).electronAPI?.fs.openVideo(libraryDir || undefined)
     if (!paths?.length) return
 
     for (const filePath of paths) {
@@ -161,6 +163,8 @@ function ClipItem({ clip, isActive, onClick }: { clip: Clip; isActive: boolean; 
   return (
     <button
       onClick={onClick}
+      draggable
+      onDragStart={(e) => e.dataTransfer.setData('text/plain', `${clip.filePath}\n${clip.name}`)}
       className={cn(
         'w-full text-left border-b border-white/5 transition-colors overflow-hidden',
         isActive ? 'bg-accent-500/15 border-l-2 border-l-accent-500' : 'hover:bg-white/5'
