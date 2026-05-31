@@ -1,8 +1,8 @@
 import React from 'react'
-import { Video, BarChart2, Columns, Settings } from 'lucide-react'
+import { Video, BarChart2, BookOpen, Settings } from 'lucide-react'
 import { cn } from '../../lib/utils/cn'
 
-export type AppRoute = 'capture' | 'analyze' | 'compare' | 'settings'
+export type AppRoute = 'capture' | 'analyze' | 'library' | 'settings'
 
 interface SidebarProps {
   route: AppRoute
@@ -12,7 +12,7 @@ interface SidebarProps {
 const NAV_ITEMS: Array<{ route: AppRoute; icon: React.ComponentType<any>; label: string }> = [
   { route: 'capture', icon: Video, label: 'Capture' },
   { route: 'analyze', icon: BarChart2, label: 'Analyze' },
-  { route: 'compare', icon: Columns, label: 'Compare' },
+  { route: 'library', icon: BookOpen, label: 'Library' },
   { route: 'settings', icon: Settings, label: 'Settings' }
 ]
 

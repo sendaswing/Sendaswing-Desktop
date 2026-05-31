@@ -3,7 +3,7 @@ import { TitleBar } from './TitleBar'
 import { Sidebar, type AppRoute } from './Sidebar'
 import { CaptureView } from '../capture/CaptureView'
 import { AnalysisView } from '../analysis/AnalysisView'
-import { ComparisonView } from '../comparison/ComparisonView'
+import { LibraryView } from '../library/LibraryView'
 import { SettingsView } from '../settings/SettingsView'
 
 export function AppShell() {
@@ -17,7 +17,7 @@ export function AppShell() {
         <main className="flex-1 min-w-0 overflow-hidden">
           {route === 'capture' && <CaptureView />}
           {route === 'analyze' && <AnalysisView />}
-          {route === 'compare' && <ComparisonView />}
+          {route === 'library' && <LibraryView onNavigate={setRoute} />}
           {route === 'settings' && <SettingsView />}
         </main>
       </div>

@@ -1,12 +1,18 @@
-import React, { useRef, useCallback, useEffect } from 'react'
+import React, { useRef, useCallback } from 'react'
 import { useAnalysisStore } from '../../store/analysisStore'
 
 interface ScrubberBarProps {
   onSeek: (frame: number) => void
+  currentFrame?: number
+  totalFrames?: number
+  preloadProgress?: number
 }
 
-export function ScrubberBar({ onSeek }: ScrubberBarProps) {
-  const { currentFrame, totalFrames } = useAnalysisStore()
+export function ScrubberBar({ onSeek, currentFrame: currentFrameProp, totalFrames: totalFramesProp, preloadProgress = 1 }: ScrubberBarProps) {
+  const store = useAnalysisStore()
+  const currentFrame = currentFrameProp ?? store.currentFrame
+  const totalFrames = totalFramesProp ?? store.totalFrames
+
   const trackRef = useRef<HTMLDivElement>(null)
   const isDragging = useRef(false)
   const rafPending = useRef(false)
@@ -62,6 +68,13 @@ export function ScrubberBar({ onSeek }: ScrubberBarProps) {
         onPointerUp={onPointerUp}
       >
         <div className="absolute inset-x-0 h-1.5 bg-white/10 rounded-full overflow-hidden">
+          {/* Preload fill — subtle underlay showing background decode progress */}
+          {preloadProgress < 1 && (
+            <div
+              className="absolute inset-y-0 left-0 bg-white/15 transition-none"
+              style={{ width: `${preloadProgress * 100}%` }}
+            />
+          )}
           <div
             className="h-full bg-accent-500 rounded-full transition-none"
             style={{ width: `${progress * 100}%` }}

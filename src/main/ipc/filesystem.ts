@@ -45,4 +45,19 @@ export function registerFilesystemHandlers(): void {
 
     return { folderPath, files }
   })
+
+  ipcMain.handle('fs:scan-directory', (_event, dirPath: string) => {
+    let entries: string[] = []
+    try {
+      entries = readdirSync(dirPath)
+    } catch {
+      return null
+    }
+
+    const files = entries
+      .filter((name) => VIDEO_EXTS.has(extname(name).toLowerCase()))
+      .map((name) => ({ name, filePath: join(dirPath, name) }))
+
+    return { folderPath: dirPath, files }
+  })
 }

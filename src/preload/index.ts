@@ -17,7 +17,9 @@ const electronAPI = {
     readFileAsBuffer: (filePath: string): Promise<ArrayBuffer> =>
       ipcRenderer.invoke('fs:read-file-as-buffer', filePath),
     scanFolder: (): Promise<{ folderPath: string; files: Array<{ name: string; filePath: string }> } | null> =>
-      ipcRenderer.invoke('fs:scan-folder')
+      ipcRenderer.invoke('fs:scan-folder'),
+    scanDirectory: (dirPath: string): Promise<{ folderPath: string; files: Array<{ name: string; filePath: string }> } | null> =>
+      ipcRenderer.invoke('fs:scan-directory', dirPath)
   },
   titlebar: {
     minimize: () => ipcRenderer.send('titlebar:minimize'),
@@ -27,7 +29,10 @@ const electronAPI = {
   settings: {
     getRecordingsDir: (): Promise<string> => ipcRenderer.invoke('settings:get-recordings-dir'),
     setRecordingsDir: (): Promise<string | null> => ipcRenderer.invoke('settings:set-recordings-dir'),
-    openRecordingsDir: (): Promise<void> => ipcRenderer.invoke('settings:open-recordings-dir')
+    openRecordingsDir: (): Promise<void> => ipcRenderer.invoke('settings:open-recordings-dir'),
+    getLibraryDir: (): Promise<string> => ipcRenderer.invoke('settings:get-library-dir'),
+    setLibraryDir: (): Promise<string | null> => ipcRenderer.invoke('settings:set-library-dir'),
+    openLibraryDir: (): Promise<void> => ipcRenderer.invoke('settings:open-library-dir')
   }
 }
 

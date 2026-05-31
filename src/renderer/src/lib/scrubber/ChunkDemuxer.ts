@@ -1,23 +1,7 @@
 import type { FrameSample } from '../../types/scrubber'
 
-// mp4box is loaded via CDN script tag to avoid worker/WASM complications in Electron
-const MP4BOX_CDN = 'https://cdn.jsdelivr.net/npm/mp4box@0.5.3/dist/mp4box.all.min.js'
-
-let mp4boxPromise: Promise<any> | null = null
-
-function getMp4box(): Promise<any> {
-  if ((window as any).MP4Box) return Promise.resolve((window as any).MP4Box)
-  if (mp4boxPromise) return mp4boxPromise
-
-  mp4boxPromise = new Promise((resolve, reject) => {
-    const script = document.createElement('script')
-    script.src = MP4BOX_CDN
-    script.onload = () => resolve((window as any).MP4Box)
-    script.onerror = () => reject(new Error('Failed to load mp4box'))
-    document.head.appendChild(script)
-  })
-  return mp4boxPromise
-}
+// @ts-ignore — mp4box has no bundled type declarations
+import MP4Box from 'mp4box'
 
 export interface DemuxResult {
   samples: SampleWithData[]
@@ -40,11 +24,12 @@ export class ChunkDemuxer {
   private _samples: SampleWithData[] = []
   private _fps = 30
   private _duration = 0
+  private _keyframeIndices: number[] = []
 
   async load(fileBuffer: ArrayBuffer): Promise<DemuxResult> {
     this._samples = []
+    this._keyframeIndices = []
 
-    const MP4Box = await getMp4box()
     const file = MP4Box.createFile()
 
     return new Promise((resolve, reject) => {
@@ -90,15 +75,18 @@ export class ChunkDemuxer {
 
         for (const s of samples) {
           const ts = timescale > 0 ? (s.cts / timescale) : s.cts
+          const isKeyframe = !!s.is_sync
           this._samples.push({
-            index: sampleIndex++,
+            index: sampleIndex,
             timestamp: ts,
             compositionTimestampUs: Math.round(ts * 1_000_000),
             byteOffset: s.offset ?? 0,
             byteLength: s.size ?? s.data?.byteLength ?? 0,
-            isKeyframe: !!s.is_sync,
+            isKeyframe,
             data: s.data instanceof Uint8Array ? s.data : new Uint8Array(s.data ?? [])
           })
+          if (isKeyframe) this._keyframeIndices.push(sampleIndex)
+          sampleIndex++
         }
 
         if (totalExpected > 0 && sampleIndex >= totalExpected) {
@@ -116,7 +104,6 @@ export class ChunkDemuxer {
       file.appendBuffer(buf)
       file.flush()
 
-      // Fallback resolve after 5 seconds in case onSamples count is off
       setTimeout(() => {
         if (this._samples.length > 0) {
           resolve({ samples: this._samples, fps: this._fps, duration: this._duration, codecConfig })
@@ -126,11 +113,15 @@ export class ChunkDemuxer {
   }
 
   findNearestKeyframe(frameIndex: number): number {
-    let nearest = 0
-    for (let i = 0; i <= frameIndex && i < this._samples.length; i++) {
-      if (this._samples[i]?.isKeyframe) nearest = i
+    const indices = this._keyframeIndices
+    if (indices.length === 0) return 0
+    let lo = 0, hi = indices.length - 1, result = 0
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1
+      if (indices[mid] <= frameIndex) { result = indices[mid]; lo = mid + 1 }
+      else hi = mid - 1
     }
-    return nearest
+    return result
   }
 
   get samples(): SampleWithData[] {
@@ -141,8 +132,13 @@ export class ChunkDemuxer {
     return this._samples.length
   }
 
+  get keyframeIndices(): number[] {
+    return this._keyframeIndices
+  }
+
   dispose(): void {
     this._samples = []
+    this._keyframeIndices = []
   }
 }
 
@@ -155,12 +151,6 @@ function extractAvcC(file: any, trackId: number): Uint8Array | undefined {
     if (!entry) return undefined
     const avcc = entry.avcC || entry.hvcC || entry.av1C
     if (!avcc) return undefined
-    const bytes: number[] = []
-    const tmpBuf = { buffer: bytes }
-    try {
-      // serialize avcC box — mp4box boxes have a .write method
-      avcc.write?.({ buffer: new ArrayBuffer(1024), pos: 0 })
-    } catch {}
     return undefined
   } catch {
     return undefined

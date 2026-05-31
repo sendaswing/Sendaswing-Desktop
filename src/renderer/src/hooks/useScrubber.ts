@@ -2,18 +2,36 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { ScrubberEngine } from '../lib/scrubber/ScrubberEngine'
 import { useAnalysisStore } from '../store/analysisStore'
 
-export function useScrubber(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
+interface UseScrubberOptions {
+  onFrameChange?: (frame: number) => void
+  onPlayStateChange?: (playing: boolean) => void
+  onTotalFramesChange?: (n: number) => void
+  onFpsChange?: (fps: number) => void
+}
+
+export function useScrubber(
+  canvasRef: React.RefObject<HTMLCanvasElement | null>,
+  options?: UseScrubberOptions
+) {
   const engineRef = useRef<ScrubberEngine | null>(null)
   const [isLoaded, setIsLoaded] = useState(false)
+  const [preloadProgress, setPreloadProgress] = useState(0)
+  const [loadFailed, setLoadFailed] = useState(false)
 
-  const { setCurrentFrame, setTotalFrames, setFps, setIsPlaying } = useAnalysisStore()
+  const store = useAnalysisStore()
+
+  const frameChangeCb = options?.onFrameChange ?? store.setCurrentFrame
+  const playStateCb = options?.onPlayStateChange ?? store.setIsPlaying
+  const totalFramesCb = options?.onTotalFramesChange ?? store.setTotalFrames
+  const fpsCb = options?.onFpsChange ?? store.setFps
 
   useEffect(() => {
     const engine = new ScrubberEngine()
     engineRef.current = engine
 
-    engine.onFrameChange = (frame) => setCurrentFrame(frame)
-    engine.onPlayStateChange = (playing) => setIsPlaying(playing)
+    engine.onFrameChange = frameChangeCb
+    engine.onPlayStateChange = playStateCb
+    engine.onPreloadProgress = (pct) => setPreloadProgress(pct)
 
     return () => {
       engine.dispose()
@@ -30,19 +48,27 @@ export function useScrubber(canvasRef: React.RefObject<HTMLCanvasElement | null>
   const loadClip = useCallback(async (filePath: string) => {
     if (!engineRef.current) return
     setIsLoaded(false)
+    setLoadFailed(false)
+    setPreloadProgress(0)
 
-    const buffer: ArrayBuffer = await (window as any).electronAPI.fs.readFileAsBuffer(filePath)
-    const result = await engineRef.current.load(buffer)
+    try {
+      const buffer: ArrayBuffer = await (window as any).electronAPI.fs.readFileAsBuffer(filePath)
+      const result = await engineRef.current.load(buffer)
 
-    setTotalFrames(result.frameCount)
-    setFps(result.fps)
-    if (canvasRef.current) {
-      canvasRef.current.width = result.codedWidth
-      canvasRef.current.height = result.codedHeight
+      totalFramesCb(result.frameCount)
+      fpsCb(result.fps)
+      if (canvasRef.current) {
+        canvasRef.current.width = result.codedWidth
+        canvasRef.current.height = result.codedHeight
+      }
+
+      setIsLoaded(true)
+    } catch (err) {
+      console.warn('[useScrubber] WebCodecs load failed, falling back to HTML5:', err)
+      setLoadFailed(true)
+      setPreloadProgress(1)
     }
-
-    setIsLoaded(true)
-  }, [])
+  }, [totalFramesCb, fpsCb])
 
   const seek = useCallback((frame: number) => {
     engineRef.current?.seek(frame)
@@ -59,5 +85,5 @@ export function useScrubber(canvasRef: React.RefObject<HTMLCanvasElement | null>
   const stepForward = useCallback(() => engineRef.current?.stepForward(), [])
   const stepBackward = useCallback(() => engineRef.current?.stepBackward(), [])
 
-  return { isLoaded, loadClip, seek, play, pause, stepForward, stepBackward, engineRef }
+  return { isLoaded, loadFailed, preloadProgress, loadClip, seek, play, pause, stepForward, stepBackward, engineRef }
 }

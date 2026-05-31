@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react'
 import { useAnalysisStore } from '../../store/analysisStore'
 import { useDrawing } from '../../hooks/useDrawing'
-import type { Annotation, Point } from '../../types/drawing'
+import type { Annotation, AnnotationLayer, Point } from '../../types/drawing'
 import { calcAngle } from '../../lib/drawing/tools'
 
 function pct(n: number) {
@@ -76,9 +76,22 @@ function AnnotationShape({ ann }: { ann: Annotation }) {
   return null
 }
 
-export function DrawingCanvas() {
-  const { annotations, currentFrame, activeTool, activeStyle } = useAnalysisStore()
-  const { isDrawing, previewStart, previewEnd, anglePoints, handlePointerDown, handlePointerMove, handlePointerUp } = useDrawing()
+interface DrawingCanvasProps {
+  annotations?: AnnotationLayer[]
+  onAddAnnotation?: (ann: Annotation) => void
+  frameIndex?: number
+}
+
+export function DrawingCanvas({ annotations: annotationsProp, onAddAnnotation, frameIndex }: DrawingCanvasProps = {}) {
+  const store = useAnalysisStore()
+  const annotations = annotationsProp ?? store.annotations
+  const currentFrame = frameIndex ?? store.currentFrame
+  const { activeTool, activeStyle } = store
+
+  const { isDrawing, previewStart, previewEnd, anglePoints, handlePointerDown, handlePointerMove, handlePointerUp } = useDrawing({
+    frameIndex: currentFrame,
+    onAddAnnotation
+  })
 
   const frameAnnotations = useMemo(
     () => annotations.flatMap((layer) =>
@@ -97,12 +110,10 @@ export function DrawingCanvas() {
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
     >
-      {/* Committed annotations */}
       {frameAnnotations.map((ann) => (
         <AnnotationShape key={ann.id} ann={ann} />
       ))}
 
-      {/* Live drag preview */}
       {isDrawing && previewStart && previewEnd && (
         <>
           {(activeTool === 'line' || activeTool === 'arrow') && (
@@ -127,7 +138,6 @@ export function DrawingCanvas() {
         </>
       )}
 
-      {/* Angle in-progress dots */}
       {activeTool === 'angle' && anglePoints.map((pt, i) => (
         <circle key={i} cx={pct(pt.x)} cy={pct(pt.y)} r="4"
           fill={activeStyle.color} opacity={0.9} />
