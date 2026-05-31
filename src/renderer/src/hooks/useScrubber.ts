@@ -63,6 +63,7 @@ export function useScrubber(
       }
 
       setIsLoaded(true)
+      engineRef.current.play(0.5)
     } catch (err) {
       console.warn('[useScrubber] WebCodecs load failed, falling back to HTML5:', err)
       setLoadFailed(true)
