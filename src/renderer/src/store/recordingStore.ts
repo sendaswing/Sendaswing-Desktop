@@ -14,8 +14,10 @@ export interface SlotRecording {
 interface RecordingStore {
   slotRecordings: SlotRecording[]
   isRecordingAll: boolean
+  pendingClub: string
   setSlotRecording: (slotIndex: number, update: Partial<SlotRecording>) => void
   setIsRecordingAll: (val: boolean) => void
+  setPendingClub: (club: string) => void
 }
 
 const defaultSlotRecording = (index: number): SlotRecording => ({
@@ -30,6 +32,7 @@ export const useRecordingStore = create<RecordingStore>()(
   immer((set) => ({
     slotRecordings: [0, 1, 2, 3].map(defaultSlotRecording),
     isRecordingAll: false,
+    pendingClub: '',
 
     setSlotRecording: (slotIndex, update) => {
       set((state) => {
@@ -40,6 +43,12 @@ export const useRecordingStore = create<RecordingStore>()(
     setIsRecordingAll: (val) => {
       set((state) => {
         state.isRecordingAll = val
+      })
+    },
+
+    setPendingClub: (club) => {
+      set((state) => {
+        state.pendingClub = club
       })
     }
   }))

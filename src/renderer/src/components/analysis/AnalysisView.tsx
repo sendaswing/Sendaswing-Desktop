@@ -12,7 +12,7 @@ export function AnalysisView() {
       <ClipBrowser />
       <ToolPalette />
       <div className="flex-1 min-w-0">
-        <VideoPlayer clipPath={activeClip?.filePath ?? null} />
+        <VideoPlayer clipPath={activeClip?.filePath ?? null} clipDuration={activeClip?.duration} />
       </div>
     </div>
   )

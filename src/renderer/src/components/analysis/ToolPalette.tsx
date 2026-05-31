@@ -1,9 +1,8 @@
 import React from 'react'
 import { MousePointer, Minus, ArrowRight, Circle, Triangle, Pencil, Trash2 } from 'lucide-react'
 import { useAnalysisStore } from '../../store/analysisStore'
-import { TOOL_COLORS, type ToolDefinition, TOOL_DEFINITIONS } from '../../lib/drawing/tools'
+import { TOOL_COLORS, TOOL_DEFINITIONS, STROKE_WIDTHS } from '../../lib/drawing/tools'
 import { cn } from '../../lib/utils/cn'
-import type { DrawingToolType } from '../../types/drawing'
 
 const ICONS: Record<string, React.ComponentType<any>> = {
   MousePointer, Minus, ArrowRight, Circle, Triangle, Pencil
@@ -33,6 +32,29 @@ export function ToolPalette() {
         )
       })}
 
+      {/* Stroke width picker */}
+      <div className="border-t border-white/10 pt-2 flex flex-col items-center gap-2">
+        {STROKE_WIDTHS.map((w) => (
+          <button
+            key={w}
+            onClick={() => setActiveStyle({ strokeWidth: w })}
+            title={`Line weight ${w}`}
+            className={cn(
+              'w-8 h-6 flex items-center justify-center rounded transition-colors',
+              activeStyle.strokeWidth === w
+                ? 'bg-accent-500/20 ring-1 ring-accent-500/60'
+                : 'hover:bg-white/5'
+            )}
+          >
+            <div
+              className="w-5 rounded-full bg-white/60"
+              style={{ height: Math.max(1, w / 2) }}
+            />
+          </button>
+        ))}
+      </div>
+
+      {/* Color picker */}
       <div className="border-t border-white/10 pt-2 flex flex-col gap-1">
         {TOOL_COLORS.map((color) => (
           <button

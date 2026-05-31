@@ -4,6 +4,7 @@ import { Sidebar, type AppRoute } from './Sidebar'
 import { CaptureView } from '../capture/CaptureView'
 import { AnalysisView } from '../analysis/AnalysisView'
 import { ComparisonView } from '../comparison/ComparisonView'
+import { SettingsView } from '../settings/SettingsView'
 
 export function AppShell() {
   const [route, setRoute] = useState<AppRoute>('capture')
@@ -17,6 +18,7 @@ export function AppShell() {
           {route === 'capture' && <CaptureView />}
           {route === 'analyze' && <AnalysisView />}
           {route === 'compare' && <ComparisonView />}
+          {route === 'settings' && <SettingsView />}
         </main>
       </div>
     </div>

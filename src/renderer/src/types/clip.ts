@@ -1,5 +1,8 @@
 import type { AnnotationLayer } from './drawing'
 
+export type CameraAngle = 'FO' | 'DL' | 'Other' | ''
+export type ClubType = 'Driver' | 'Iron' | 'Wedge' | 'FW' | 'Hybrid' | 'Putt' | ''
+
 export interface Clip {
   id: string
   name: string
@@ -10,6 +13,8 @@ export interface Clip {
   thumbnailPath: string | null
   recordedAt: string
   cameraLabel: string
+  cameraAngle: CameraAngle
+  club: ClubType
   tags: string[]
   annotations: AnnotationLayer[]
 }
@@ -18,4 +23,6 @@ export interface ClipMeta {
   name: string
   tags: string[]
   cameraLabel: string
+  cameraAngle: CameraAngle
+  club: ClubType
 }

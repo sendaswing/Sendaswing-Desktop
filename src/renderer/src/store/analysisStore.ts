@@ -39,7 +39,7 @@ const defaultLayer: AnnotationLayer = {
 
 const defaultStyle: AnnotationStyle = {
   color: '#22c55e',
-  strokeWidth: 2,
+  strokeWidth: 3,
   opacity: 1
 }
 

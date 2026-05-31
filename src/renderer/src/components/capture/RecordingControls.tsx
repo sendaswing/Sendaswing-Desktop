@@ -1,5 +1,5 @@
 import React from 'react'
-import { Circle, Square, LayoutGrid, StretchHorizontal, LayoutDashboard } from 'lucide-react'
+import { Circle, Square, StretchHorizontal, LayoutDashboard } from 'lucide-react'
 import { useCameraStore } from '../../store/cameraStore'
 import { useRecordingStore } from '../../store/recordingStore'
 import { useRecorder } from '../../hooks/useRecorder'
@@ -12,66 +12,108 @@ const LAYOUTS: Array<{ layout: GridLayout; icon: React.ComponentType<any>; label
   { layout: '2x2', icon: LayoutDashboard, label: '4 cam' }
 ]
 
+const CLUBS = ['Driver', 'Iron', 'Wedge', 'FW', 'Hybrid', 'Putt'] as const
+
 export function RecordingControls() {
   const { slots, gridLayout, setGridLayout } = useCameraStore()
-  const { isRecordingAll } = useRecordingStore()
+  const { isRecordingAll, pendingClub, setPendingClub } = useRecordingStore()
   const { startAll, stopAll } = useRecorder()
+
+  const activeSlots = slots.filter((s) => s.stream && s.status === 'streaming')
+  const missingAngle = activeSlots.some((s) => !s.cameraAngle)
+  const canRecord = activeSlots.length > 0 && !missingAngle
 
   const handleRecord = async () => {
     if (isRecordingAll) {
       await stopAll()
       return
     }
+    if (!canRecord) return
 
-    const activeSlots = slots
-      .filter((s) => s.stream && s.status === 'streaming')
-      .map((s) => ({ index: s.index, stream: s.stream!, label: s.label }))
-
-    if (activeSlots.length === 0) return
-    await startAll(activeSlots)
+    await startAll(
+      activeSlots.map((s) => ({
+        index: s.index,
+        stream: s.stream!,
+        label: s.label,
+        cameraAngle: s.cameraAngle,
+        club: pendingClub
+      }))
+    )
   }
 
   return (
-    <div className="flex items-center gap-3 px-4 py-2 bg-surface-800 border-t border-white/5 shrink-0">
-      <div className="flex items-center gap-1">
-        {LAYOUTS.map(({ layout, icon: Icon, label }) => (
-          <button
-            key={layout}
-            onClick={() => setGridLayout(layout)}
-            title={label}
-            className={cn(
-              'p-1.5 rounded transition-colors',
-              gridLayout === layout ? 'bg-white/15 text-white' : 'text-white/30 hover:text-white/60 hover:bg-white/5'
-            )}
-          >
-            <Icon size={14} />
-          </button>
-        ))}
+    <div className="flex flex-col gap-1.5 px-4 py-2 bg-surface-800 border-t border-white/5 shrink-0">
+      <div className="flex items-center gap-1.5">
+        <span className="text-xs text-white/30 shrink-0">Club:</span>
+        <div className="flex flex-wrap gap-1">
+          {CLUBS.map((club) => (
+            <button
+              key={club}
+              onClick={() => setPendingClub(pendingClub === club ? '' : club)}
+              disabled={isRecordingAll}
+              className={cn(
+                'px-2 py-0.5 rounded text-xs transition-colors',
+                pendingClub === club
+                  ? 'bg-accent-500/80 text-black font-semibold'
+                  : 'bg-white/5 text-white/35 hover:text-white/70 hover:bg-white/10',
+                isRecordingAll && 'opacity-40 cursor-not-allowed'
+              )}
+            >
+              {club}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="flex-1" />
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1">
+          {LAYOUTS.map(({ layout, icon: Icon, label }) => (
+            <button
+              key={layout}
+              onClick={() => setGridLayout(layout)}
+              title={label}
+              className={cn(
+                'p-1.5 rounded transition-colors',
+                gridLayout === layout ? 'bg-white/15 text-white' : 'text-white/30 hover:text-white/60 hover:bg-white/5'
+              )}
+            >
+              <Icon size={14} />
+            </button>
+          ))}
+        </div>
 
-      <button
-        onClick={handleRecord}
-        className={cn(
-          'flex items-center gap-2 px-4 py-1.5 rounded font-semibold text-sm transition-colors',
-          isRecordingAll
-            ? 'bg-red-600 hover:bg-red-700 text-white'
-            : 'bg-accent-500 hover:bg-accent-600 text-black'
+        <div className="flex-1" />
+
+        {!isRecordingAll && missingAngle && activeSlots.length > 0 && (
+          <span className="text-xs text-amber-400/70">Set angle first</span>
         )}
-      >
-        {isRecordingAll ? (
-          <>
-            <Square size={14} className="fill-white" />
-            Stop Recording
-          </>
-        ) : (
-          <>
-            <Circle size={14} className="fill-current" />
-            Record
-          </>
-        )}
-      </button>
+
+        <button
+          onClick={handleRecord}
+          disabled={!isRecordingAll && !canRecord}
+          title={!isRecordingAll && missingAngle ? 'Set camera angle before recording' : undefined}
+          className={cn(
+            'flex items-center gap-2 px-4 py-1.5 rounded font-semibold text-sm transition-colors',
+            isRecordingAll
+              ? 'bg-red-600 hover:bg-red-700 text-white'
+              : canRecord
+              ? 'bg-accent-500 hover:bg-accent-600 text-black'
+              : 'bg-white/10 text-white/25 cursor-not-allowed'
+          )}
+        >
+          {isRecordingAll ? (
+            <>
+              <Square size={14} className="fill-white" />
+              Stop Recording
+            </>
+          ) : (
+            <>
+              <Circle size={14} className="fill-current" />
+              Record
+            </>
+          )}
+        </button>
+      </div>
     </div>
   )
 }

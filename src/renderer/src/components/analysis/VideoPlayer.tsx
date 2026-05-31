@@ -9,14 +9,15 @@ import { useEffect } from 'react'
 
 interface VideoPlayerProps {
   clipPath?: string | null
+  clipDuration?: number
 }
 
-export function VideoPlayer({ clipPath }: VideoPlayerProps) {
+export function VideoPlayer({ clipPath, clipDuration }: VideoPlayerProps) {
   const { attachVideo, isLoaded, loadFile, seekToFrame, play, pause, stepForward, stepBackward } = useVideoElement()
   const { playbackSpeed, currentFrame, totalFrames, fps, isPlaying } = useAnalysisStore()
 
   useEffect(() => {
-    if (clipPath) loadFile(clipPath)
+    if (clipPath) loadFile(clipPath, clipDuration)
   }, [clipPath])
 
   const handleSeek = useCallback((frame: number) => {
