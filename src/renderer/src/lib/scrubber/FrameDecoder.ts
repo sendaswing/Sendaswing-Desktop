@@ -24,6 +24,10 @@ export class FrameDecoder {
   }
 
   async init(config: DecoderConfig): Promise<void> {
+    // Close any existing decoder before creating a new one to prevent accumulation
+    if (this.decoder && this.decoder.state !== 'closed') this.decoder.close()
+    this.pendingCallbacks.clear()
+    this.sampleIndexByUs.clear()
     this.config = config
 
     this.decoder = new VideoDecoder({
