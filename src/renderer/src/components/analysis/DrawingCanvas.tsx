@@ -95,9 +95,9 @@ export function DrawingCanvas({ annotations: annotationsProp, onAddAnnotation, f
 
   const frameAnnotations = useMemo(
     () => annotations.flatMap((layer) =>
-      layer.visible ? layer.annotations.filter((a) => a.frameIndex === currentFrame) : []
+      layer.visible ? layer.annotations : []
     ),
-    [annotations, currentFrame]
+    [annotations]
   )
 
   const cursor = activeTool && activeTool !== 'select' ? 'crosshair' : 'default'

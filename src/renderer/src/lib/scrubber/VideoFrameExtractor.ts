@@ -35,16 +35,21 @@ export class VideoFrameExtractor {
       cache.resize(frameCount)
 
       if ('requestVideoFrameCallback' in (video as any)) {
-        // Fast path: play at 2× and capture every frame via requestVideoFrameCallback.
-        // Each createImageBitmap() snapshots the frame at call time — async resolution is safe.
+        // Fast path: play at 2× and capture frames via requestVideoFrameCallback.
+        // IMPORTANT: await each createImageBitmap before registering the next callback.
+        // Firing them in parallel exhausts the Chrome capture buffer pool (3–5 entries),
+        // causing "Failed to reserve output capture buffer" and breaking all video loading.
         video.currentTime = 0
         await new Promise<void>((res) => { video.onseeked = () => res() })
         video.playbackRate = 2
 
         await new Promise<void>((res) => {
-          const onFrame = (_now: number, meta: any) => {
+          const onFrame = async (_now: number, meta: any) => {
             const frameIdx = Math.min(Math.round((meta.mediaTime as number) * fps), frameCount - 1)
-            createImageBitmap(video).then((bmp) => cache.put(frameIdx, bmp))
+            try {
+              const bmp = await createImageBitmap(video)
+              cache.put(frameIdx, bmp)
+            } catch { /* skip frame if capture fails */ }
             onProgress?.(frameIdx / Math.max(frameCount - 1, 1))
             if (frameIdx >= frameCount - 1 || video.ended) { video.pause(); res(); return }
             ;(video as any).requestVideoFrameCallback(onFrame)
