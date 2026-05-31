@@ -27,6 +27,12 @@ export class ChunkDemuxer {
   private _keyframeIndices: number[] = []
 
   async load(fileBuffer: ArrayBuffer): Promise<DemuxResult> {
+    // Fast WebM/EBML detection — bytes 0x1A 0x45 0xDF 0xA3
+    const header = new Uint8Array(fileBuffer, 0, Math.min(12, fileBuffer.byteLength))
+    if (header[0] === 0x1A && header[1] === 0x45 && header[2] === 0xDF && header[3] === 0xA3) {
+      throw new Error('webm-format')
+    }
+
     this._samples = []
     this._keyframeIndices = []
 
@@ -107,6 +113,8 @@ export class ChunkDemuxer {
       setTimeout(() => {
         if (this._samples.length > 0) {
           resolve({ samples: this._samples, fps: this._fps, duration: this._duration, codecConfig })
+        } else {
+          reject(new Error('parse-timeout: no samples decoded'))
         }
       }, 5000)
     })

@@ -14,50 +14,91 @@ interface LibraryFile {
   filePath: string
 }
 
-function VideoThumbnail({ file, onClick }: { file: LibraryFile; onClick: () => void }) {
-  const videoRef = useRef<HTMLVideoElement>(null)
+// Shared concurrency semaphore — at most 4 thumbnail loads in parallel
+function makeSemaphore(max: number) {
+  let running = 0
+  const queue: Array<() => void> = []
+  return {
+    acquire(): Promise<void> {
+      return new Promise((resolve) => {
+        if (running < max) { running++; resolve() }
+        else queue.push(resolve)
+      })
+    },
+    release() {
+      running--
+      const next = queue.shift()
+      if (next) { running++; next() }
+    }
+  }
+}
+
+function VideoThumbnail({
+  file,
+  onClick,
+  semaphore
+}: {
+  file: LibraryFile
+  onClick: () => void
+  semaphore: ReturnType<typeof makeSemaphore>
+}) {
+  const containerRef = useRef<HTMLDivElement>(null)
   const [thumbUrl, setThumbUrl] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  const loadThumbnail = useCallback(async () => {
+    if (thumbUrl || loading) return
+    setLoading(true)
+    await semaphore.acquire()
+    try {
+      const buffer: ArrayBuffer = await (window as any).electronAPI.fs.readFileAsBuffer(file.filePath)
+      const blob = new Blob([buffer])
+      const objectUrl = URL.createObjectURL(blob)
+      const video = document.createElement('video')
+      video.src = objectUrl
+      video.muted = true
+      video.currentTime = 0.5
+      await new Promise<void>((res) => {
+        video.onseeked = () => res()
+        video.onerror = () => res()
+        video.load()
+      })
+      const canvas = document.createElement('canvas')
+      canvas.width = 320
+      canvas.height = 180
+      canvas.getContext('2d')?.drawImage(video, 0, 0, 320, 180)
+      URL.revokeObjectURL(objectUrl)
+      setThumbUrl(canvas.toDataURL('image/jpeg', 0.7))
+    } catch {
+      // leave thumb null — no thumbnail available
+    } finally {
+      semaphore.release()
+      setLoading(false)
+    }
+  }, [file.filePath, thumbUrl, loading, semaphore])
 
   useEffect(() => {
-    let objectUrl: string | null = null
-    const load = async () => {
-      try {
-        const buffer: ArrayBuffer = await (window as any).electronAPI.fs.readFileAsBuffer(file.filePath)
-        const blob = new Blob([buffer])
-        objectUrl = URL.createObjectURL(blob)
-        const video = document.createElement('video')
-        video.src = objectUrl
-        video.muted = true
-        video.currentTime = 0.5
-        video.onseeked = () => {
-          const canvas = document.createElement('canvas')
-          canvas.width = 320
-          canvas.height = 180
-          canvas.getContext('2d')?.drawImage(video, 0, 0, 320, 180)
-          setThumbUrl(canvas.toDataURL('image/jpeg', 0.7))
-          URL.revokeObjectURL(objectUrl!)
-        }
-        video.onerror = () => {
-          if (objectUrl) URL.revokeObjectURL(objectUrl)
-          setThumbUrl(null)
-        }
-        video.load()
-      } catch {
-        if (objectUrl) URL.revokeObjectURL(objectUrl)
-      }
-    }
-    load()
-  }, [file.filePath])
+    const el = containerRef.current
+    if (!el) return
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { obs.disconnect(); loadThumbnail() } },
+      { rootMargin: '200px' }
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [loadThumbnail])
 
   return (
     <button
       onClick={onClick}
       className="group flex flex-col rounded-lg overflow-hidden bg-black/40 border border-white/5 hover:border-accent-500/40 transition-colors text-left"
     >
-      <div className="relative aspect-video bg-black">
+      <div ref={containerRef} className="relative aspect-video bg-black">
         {thumbUrl
           ? <img src={thumbUrl} className="w-full h-full object-cover" alt="" />
-          : <div className="w-full h-full flex items-center justify-center text-white/10 text-xs">Loading…</div>
+          : <div className="w-full h-full flex items-center justify-center text-white/10 text-xs">
+              {loading ? 'Loading…' : ''}
+            </div>
         }
       </div>
       <div className="px-2 py-1.5">
@@ -73,6 +114,8 @@ export function LibraryView({ onNavigate }: LibraryViewProps) {
   const [files, setFiles] = useState<LibraryFile[]>([])
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
+  // Stable semaphore for this mount — recreated only when component remounts
+  const semaphoreRef = useRef(makeSemaphore(4))
 
   const scan = useCallback(async (dir: string) => {
     if (!dir) return
@@ -162,7 +205,12 @@ export function LibraryView({ onNavigate }: LibraryViewProps) {
       <div className="flex-1 overflow-y-auto p-4">
         <div className="grid grid-cols-3 gap-3 xl:grid-cols-4">
           {filtered.map((file) => (
-            <VideoThumbnail key={file.filePath} file={file} onClick={() => handleOpenClip(file)} />
+            <VideoThumbnail
+              key={file.filePath}
+              file={file}
+              onClick={() => handleOpenClip(file)}
+              semaphore={semaphoreRef.current}
+            />
           ))}
         </div>
       </div>
