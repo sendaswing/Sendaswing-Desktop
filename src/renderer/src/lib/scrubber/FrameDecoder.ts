@@ -16,6 +16,9 @@ export class FrameDecoder {
   private fps = 30
   private sampleIndexByUs = new Map<number, number>()
 
+  // Tracks the last keyframe group submitted to the decoder for sequential decode
+  private lastKeyframeGroup = -1
+
   constructor(cache: FrameCache) {
     this.cache = cache
   }
@@ -67,6 +70,7 @@ export class FrameDecoder {
 
     const end = Math.min(targetIndex, samples.length - 1)
     this.sampleIndexByUs.clear()
+    this.lastKeyframeGroup = -1
 
     for (let i = startIndex; i <= end; i++) {
       const s = samples[i]
@@ -85,6 +89,63 @@ export class FrameDecoder {
 
     if (targetIndex >= 0 && targetIndex < samples.length) {
       const targetUs = samples[targetIndex].compositionTimestampUs
+      this.pendingCallbacks.set(targetUs, onDone)
+    } else {
+      onDone()
+    }
+  }
+
+  // Sequential decode: does NOT reset between frames in the same keyframe group.
+  // Only resets when frameIndex is in a new keyframe group (i.e. past the next keyframe).
+  // Call this for in-order sequential preload; onFrame is called for every decoded frame via cache.
+  decodeSequential(
+    samples: SampleWithData[],
+    frameIndex: number,
+    keyframeIndices: number[],
+    onDone: () => void
+  ): void {
+    if (!this.decoder || samples.length === 0 || frameIndex >= samples.length) { onDone(); return }
+
+    // Find the keyframe group for this frame
+    let kf = 0
+    let lo = 0, hi = keyframeIndices.length - 1
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1
+      if (keyframeIndices[mid] <= frameIndex) { kf = keyframeIndices[mid]; lo = mid + 1 }
+      else hi = mid - 1
+    }
+
+    // If we're in a new keyframe group we need to reset first
+    if (kf !== this.lastKeyframeGroup) {
+      this.reset()
+      this.lastKeyframeGroup = kf
+
+      // Submit all frames from the keyframe up to (and including) frameIndex
+      for (let i = kf; i <= frameIndex; i++) {
+        const s = samples[i]
+        if (!s?.data?.byteLength) continue
+        this.sampleIndexByUs.set(s.compositionTimestampUs, i)
+        this.decoder.decode(new EncodedVideoChunk({
+          type: s.isKeyframe ? 'key' : 'delta',
+          timestamp: s.compositionTimestampUs,
+          data: s.data
+        }))
+      }
+    } else {
+      // Same keyframe group — just submit this one frame
+      const s = samples[frameIndex]
+      if (s?.data?.byteLength) {
+        this.sampleIndexByUs.set(s.compositionTimestampUs, frameIndex)
+        this.decoder.decode(new EncodedVideoChunk({
+          type: s.isKeyframe ? 'key' : 'delta',
+          timestamp: s.compositionTimestampUs,
+          data: s.data
+        }))
+      }
+    }
+
+    if (frameIndex < samples.length) {
+      const targetUs = samples[frameIndex].compositionTimestampUs
       this.pendingCallbacks.set(targetUs, onDone)
     } else {
       onDone()
@@ -124,6 +185,7 @@ export class FrameDecoder {
     this.decoder.reset()
     this.pendingCallbacks.clear()
     this.sampleIndexByUs.clear()
+    this.lastKeyframeGroup = -1
 
     if (this.config) {
       const vcConfig: VideoDecoderConfig = {

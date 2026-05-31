@@ -6,14 +6,15 @@ const SETTINGS_PATH = join(app.getPath('userData'), 'settings.json')
 
 interface AppSettings {
   recordingsDir: string
+  libraryDir: string
 }
 
 function readSettings(): AppSettings {
   try {
     const raw = readFileSync(SETTINGS_PATH, 'utf-8')
-    return JSON.parse(raw) as AppSettings
+    return { libraryDir: '', ...JSON.parse(raw) } as AppSettings
   } catch {
-    return { recordingsDir: join(app.getPath('userData'), 'recordings') }
+    return { recordingsDir: join(app.getPath('userData'), 'recordings'), libraryDir: '' }
   }
 }
 
@@ -51,6 +52,32 @@ export function registerSettingsHandlers(): void {
   ipcMain.handle('settings:open-recordings-dir', async () => {
     const dir = getRecordingsDir()
     mkdirSync(dir, { recursive: true })
+    await shell.openPath(dir)
+  })
+
+  ipcMain.handle('settings:get-library-dir', () => {
+    return readSettings().libraryDir ?? ''
+  })
+
+  ipcMain.handle('settings:set-library-dir', async () => {
+    const current = readSettings().libraryDir ?? ''
+    const result = await dialog.showOpenDialog({
+      title: 'Choose Library Folder',
+      defaultPath: current || app.getPath('home'),
+      properties: ['openDirectory', 'createDirectory']
+    })
+    if (result.canceled || !result.filePaths[0]) return null
+
+    const newDir = result.filePaths[0]
+    const settings = readSettings()
+    settings.libraryDir = newDir
+    writeSettings(settings)
+    return newDir
+  })
+
+  ipcMain.handle('settings:open-library-dir', async () => {
+    const dir = readSettings().libraryDir ?? ''
+    if (!dir) return
     await shell.openPath(dir)
   })
 }

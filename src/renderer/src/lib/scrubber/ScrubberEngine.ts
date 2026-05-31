@@ -28,8 +28,11 @@ export class ScrubberEngine {
   private playStartTime = 0
   private playStartFrame = 0
 
+  private preloadIdleId: number | null = null
+
   onFrameChange: ((frame: number) => void) | null = null
   onPlayStateChange: ((playing: boolean) => void) | null = null
+  onPreloadProgress: ((pct: number) => void) | null = null
 
   constructor() {
     this.decoder = new FrameDecoder(this.cache)
@@ -42,12 +45,16 @@ export class ScrubberEngine {
 
   async load(fileBuffer: ArrayBuffer): Promise<ScrubberLoadResult> {
     this.stop()
+    this.cancelPreload()
     this.cache.clear()
 
     const result = await this.demuxer.load(fileBuffer)
     this.samples = result.samples
     this.fps = result.fps
     this.frameCount = this.samples.length
+
+    // Size the cache to hold all frames for short clips, cap at 1200 for longer ones
+    this.cache.resize(Math.min(this.frameCount, 1200))
 
     await this.decoder.init(result.codecConfig)
     this.decoder.setFps(this.fps)
@@ -58,6 +65,9 @@ export class ScrubberEngine {
 
     await this.seekAsync(0)
 
+    // Kick off background preload of all frames
+    this.preloadAll()
+
     return {
       frameCount: this.frameCount,
       fps: this.fps,
@@ -67,6 +77,52 @@ export class ScrubberEngine {
     }
   }
 
+  private cancelPreload(): void {
+    if (this.preloadIdleId !== null && typeof cancelIdleCallback !== 'undefined') {
+      cancelIdleCallback(this.preloadIdleId)
+      this.preloadIdleId = null
+    }
+  }
+
+  // Preloads all frames in the background using idle callbacks.
+  // Decodes one keyframe group per idle slice to avoid blocking the main thread.
+  private preloadAll(): void {
+    if (typeof requestIdleCallback === 'undefined') return
+    if (this.frameCount === 0) return
+
+    const keyframeIndices = this.demuxer.keyframeIndices
+    let kfGroupIdx = 0 // which keyframe group we're currently preloading
+
+    const step = (deadline: IdleDeadline) => {
+      // Process as many keyframe groups as idle time allows
+      while (kfGroupIdx < keyframeIndices.length && deadline.timeRemaining() > 4) {
+        const kfStart = keyframeIndices[kfGroupIdx]
+        const kfEnd = kfGroupIdx + 1 < keyframeIndices.length
+          ? keyframeIndices[kfGroupIdx + 1] - 1
+          : this.frameCount - 1
+
+        for (let i = kfStart; i <= kfEnd; i++) {
+          if (!this.cache.has(i)) {
+            this.decoder.decodeSequential(this.samples, i, keyframeIndices, () => {})
+          }
+        }
+
+        kfGroupIdx++
+        const lastFrameInGroup = kfEnd
+        this.onPreloadProgress?.(Math.min(1, (lastFrameInGroup + 1) / this.frameCount))
+      }
+
+      if (kfGroupIdx < keyframeIndices.length) {
+        this.preloadIdleId = requestIdleCallback(step, { timeout: 500 })
+      } else {
+        this.preloadIdleId = null
+        this.onPreloadProgress?.(1)
+      }
+    }
+
+    this.preloadIdleId = requestIdleCallback(step, { timeout: 500 })
+  }
+
   private seekAsync(frameIndex: number): Promise<void> {
     const target = this.clamp(frameIndex)
     const cached = this.cache.get(target)
@@ -74,7 +130,6 @@ export class ScrubberEngine {
       this.renderBitmap(cached)
       this.currentFrame = target
       this.onFrameChange?.(target)
-      this.prefetchAhead(target)
       return Promise.resolve()
     }
 
@@ -86,7 +141,6 @@ export class ScrubberEngine {
         const bmp = this.cache.get(target)
         if (bmp) this.renderBitmap(bmp)
         this.onFrameChange?.(target)
-        this.prefetchAhead(target)
         resolve()
       })
     })
@@ -108,7 +162,6 @@ export class ScrubberEngine {
         this.onFrameChange?.(target)
       })
     }
-    this.prefetchAhead(target)
   }
 
   play(speed = 1): void {
@@ -182,19 +235,6 @@ export class ScrubberEngine {
     this.ctx.drawImage(bmp, 0, 0, this.canvas.width, this.canvas.height)
   }
 
-  private prefetchAhead(frameIndex: number): void {
-    if (typeof requestIdleCallback === 'undefined') return
-    requestIdleCallback(() => {
-      for (let i = frameIndex + 1; i <= frameIndex + 60 && i < this.frameCount; i++) {
-        if (!this.cache.has(i)) {
-          const kf = this.demuxer.findNearestKeyframe(i)
-          this.decoder.decodeFrom(this.samples, kf, i, () => {})
-          break
-        }
-      }
-    }, { timeout: 200 })
-  }
-
   private clamp(n: number): number {
     return Math.max(0, Math.min(n, this.frameCount - 1))
   }
@@ -205,6 +245,7 @@ export class ScrubberEngine {
 
   dispose(): void {
     this.stop()
+    this.cancelPreload()
     this.decoder.dispose()
     this.cache.clear()
     this.demuxer.dispose()

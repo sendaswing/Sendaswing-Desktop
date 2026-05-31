@@ -1,20 +1,41 @@
 import React from 'react'
-import { Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Play, Pause, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useAnalysisStore } from '../../store/analysisStore'
 import { formatTimecode } from '../../lib/utils/formatTime'
 import { cn } from '../../lib/utils/cn'
 
-const SPEEDS = [0.25, 0.5, 1, 2]
+const SPEEDS = [0.1, 0.25, 0.5, 1, 2]
 
 interface PlaybackControlsProps {
   onPlay: (speed: number) => void
   onPause: () => void
   onStepForward: () => void
   onStepBackward: () => void
+  isPlaying?: boolean
+  playbackSpeed?: number
+  currentFrame?: number
+  fps?: number
+  totalFrames?: number
+  onSetPlaybackSpeed?: (speed: number) => void
 }
 
-export function PlaybackControls({ onPlay, onPause, onStepForward, onStepBackward }: PlaybackControlsProps) {
-  const { isPlaying, playbackSpeed, setPlaybackSpeed, currentFrame, fps, totalFrames } = useAnalysisStore()
+export function PlaybackControls({
+  onPlay, onPause, onStepForward, onStepBackward,
+  isPlaying: isPlayingProp,
+  playbackSpeed: playbackSpeedProp,
+  currentFrame: currentFrameProp,
+  fps: fpsProp,
+  totalFrames: totalFramesProp,
+  onSetPlaybackSpeed
+}: PlaybackControlsProps) {
+  const store = useAnalysisStore()
+  const isPlaying = isPlayingProp ?? store.isPlaying
+  const playbackSpeed = playbackSpeedProp ?? store.playbackSpeed
+  const currentFrame = currentFrameProp ?? store.currentFrame
+  const fps = fpsProp ?? store.fps
+  const totalFrames = totalFramesProp ?? store.totalFrames
+
+  const setSpeed = onSetPlaybackSpeed ?? store.setPlaybackSpeed
 
   const handlePlayToggle = () => {
     if (isPlaying) onPause()
@@ -39,7 +60,7 @@ export function PlaybackControls({ onPlay, onPause, onStepForward, onStepBackwar
         {SPEEDS.map((s) => (
           <button
             key={s}
-            onClick={() => { setPlaybackSpeed(s); if (isPlaying) onPlay(s) }}
+            onClick={() => { setSpeed(s); if (isPlaying) onPlay(s) }}
             className={cn(
               'px-1.5 py-0.5 rounded text-xs font-mono transition-colors',
               playbackSpeed === s ? 'bg-accent-500/30 text-accent-400' : 'text-white/30 hover:text-white/60 hover:bg-white/5'

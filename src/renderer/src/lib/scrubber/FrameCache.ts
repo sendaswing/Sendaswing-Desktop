@@ -7,6 +7,16 @@ export class FrameCache {
     this.maxSize = maxSize
   }
 
+  resize(n: number): void {
+    this.maxSize = n
+    while (this.cache.size > this.maxSize) {
+      const evict = this.accessOrder.shift()!
+      const bmp = this.cache.get(evict)
+      if (bmp) bmp.close()
+      this.cache.delete(evict)
+    }
+  }
+
   get(frameIndex: number): ImageBitmap | undefined {
     const bmp = this.cache.get(frameIndex)
     if (bmp) {

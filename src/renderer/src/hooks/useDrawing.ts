@@ -14,15 +14,20 @@ function getPoint(e: React.PointerEvent<SVGSVGElement>): Point {
   }
 }
 
-export function useDrawing() {
+interface UseDrawingOptions {
+  frameIndex?: number
+  onAddAnnotation?: (ann: Annotation) => void
+}
+
+export function useDrawing({ frameIndex: frameIndexProp, onAddAnnotation }: UseDrawingOptions = {}) {
   const { activeTool, activeStyle, currentFrame, addAnnotation } = useAnalysisStore()
 
-  // For drag-based tools: start point stored in ref to avoid stale closure
+  const frameIndex = frameIndexProp ?? currentFrame
+  const addAnn = onAddAnnotation ?? addAnnotation
+
   const startPointRef = useRef<Point | null>(null)
   const [previewEnd, setPreviewEnd] = useState<Point | null>(null)
   const [isDrawing, setIsDrawing] = useState(false)
-
-  // For angle tool (3 clicks): accumulate points
   const [anglePoints, setAnglePoints] = useState<Point[]>([])
 
   const handlePointerDown = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
@@ -33,12 +38,11 @@ export function useDrawing() {
     const pt = getPoint(e)
 
     if (activeTool === 'angle') {
-      // angle is click-3-times: vertex, arm1, arm2
       setAnglePoints((prev) => {
         const next = [...prev, pt]
         if (next.length === 3) {
-          addAnnotation({
-            type: 'angle', id: nextId(), frameIndex: currentFrame,
+          addAnn({
+            type: 'angle', id: nextId(), frameIndex,
             points: [next[0], next[1], next[2]], style: { ...activeStyle }
           })
           return []
@@ -48,11 +52,10 @@ export function useDrawing() {
       return
     }
 
-    // All other tools: drag-based
     startPointRef.current = pt
     setPreviewEnd(pt)
     setIsDrawing(true)
-  }, [activeTool, activeStyle, currentFrame, addAnnotation])
+  }, [activeTool, activeStyle, frameIndex, addAnn])
 
   const handlePointerMove = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
     if (!isDrawing || !startPointRef.current) return
@@ -62,7 +65,6 @@ export function useDrawing() {
 
     if (activeTool === 'freehand') {
       setPreviewEnd(pt)
-      // For freehand, collect points incrementally
       setAnglePoints((prev) => [...prev, pt])
     } else {
       setPreviewEnd(pt)
@@ -86,32 +88,29 @@ export function useDrawing() {
     if (activeTool === 'freehand') {
       const pts = anglePoints.length > 1 ? anglePoints : [start, end]
       if (pts.length > 1) {
-        addAnnotation({ type: 'freehand', id: nextId(), frameIndex: currentFrame, points: pts, style: { ...activeStyle } })
+        addAnn({ type: 'freehand', id: nextId(), frameIndex, points: pts, style: { ...activeStyle } })
       }
       setAnglePoints([])
       return
     }
 
-    if (dist < 0.005) return // ignore tiny drags (accidental clicks)
+    if (dist < 0.005) return
 
     if (activeTool === 'line') {
-      addAnnotation({ type: 'line', id: nextId(), frameIndex: currentFrame, points: [start, end], style: { ...activeStyle } })
+      addAnn({ type: 'line', id: nextId(), frameIndex, points: [start, end], style: { ...activeStyle } })
     } else if (activeTool === 'arrow') {
-      addAnnotation({ type: 'arrow', id: nextId(), frameIndex: currentFrame, points: [start, end], style: { ...activeStyle } })
+      addAnn({ type: 'arrow', id: nextId(), frameIndex, points: [start, end], style: { ...activeStyle } })
     } else if (activeTool === 'circle') {
       const radius = Math.sqrt(dx * dx + dy * dy)
-      addAnnotation({ type: 'circle', id: nextId(), frameIndex: currentFrame, center: start, radius, style: { ...activeStyle } })
+      addAnn({ type: 'circle', id: nextId(), frameIndex, center: start, radius, style: { ...activeStyle } })
     }
-  }, [isDrawing, activeTool, activeStyle, currentFrame, addAnnotation, anglePoints])
-
-  const previewStartPoint = startPointRef.current
-  const angleClickPoints = anglePoints
+  }, [isDrawing, activeTool, activeStyle, frameIndex, addAnn, anglePoints])
 
   return {
     isDrawing,
-    previewStart: previewStartPoint,
+    previewStart: startPointRef.current,
     previewEnd,
-    anglePoints: angleClickPoints,
+    anglePoints,
     handlePointerDown,
     handlePointerMove,
     handlePointerUp
