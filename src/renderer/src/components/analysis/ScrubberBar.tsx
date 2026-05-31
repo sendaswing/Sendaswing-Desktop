@@ -3,12 +3,13 @@ import { useAnalysisStore } from '../../store/analysisStore'
 
 interface ScrubberBarProps {
   onSeek: (frame: number) => void
+  onScrubStart?: () => void
   currentFrame?: number
   totalFrames?: number
   preloadProgress?: number
 }
 
-export function ScrubberBar({ onSeek, currentFrame: currentFrameProp, totalFrames: totalFramesProp, preloadProgress = 1 }: ScrubberBarProps) {
+export function ScrubberBar({ onSeek, onScrubStart, currentFrame: currentFrameProp, totalFrames: totalFramesProp, preloadProgress = 1 }: ScrubberBarProps) {
   const store = useAnalysisStore()
   const currentFrame = currentFrameProp ?? store.currentFrame
   const totalFrames = totalFramesProp ?? store.totalFrames
@@ -42,10 +43,11 @@ export function ScrubberBar({ onSeek, currentFrame: currentFrameProp, totalFrame
   }, [flushSeek])
 
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    onScrubStart?.()
     isDragging.current = true
     e.currentTarget.setPointerCapture(e.pointerId)
     scheduleSeek(getFrameFromPointer(e.clientX))
-  }, [getFrameFromPointer, scheduleSeek])
+  }, [onScrubStart, getFrameFromPointer, scheduleSeek])
 
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDragging.current) return
