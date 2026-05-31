@@ -62,7 +62,29 @@ export function VideoPlayer({ clipPath, clipDuration }: VideoPlayerProps) {
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     setIsDragOver(false)
-    // Native OS file drop only (internal drags are handled by RightVideoPanel)
+
+    // Internal drag from ClipBrowser (text/plain = "filePath\nname")
+    const text = e.dataTransfer.getData('text/plain')
+    if (text) {
+      const [filePath, name] = text.split('\n')
+      if (filePath) {
+        const existing = useClipStore.getState().clips.find((c) => c.filePath === filePath)
+        if (existing) { setActiveClip(existing); return }
+        const clip: Clip = {
+          id: `drop-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          name: name || filePath.split(/[\\/]/).pop()!,
+          filePath,
+          duration: 0, fps: 30, frameCount: 0, thumbnailPath: null,
+          recordedAt: new Date().toISOString(),
+          cameraLabel: 'Imported', cameraAngle: '', club: '', tags: [], annotations: []
+        }
+        addClip(clip)
+        setActiveClip(clip)
+        return
+      }
+    }
+
+    // Native OS file drop
     const file = e.dataTransfer.files[0]
     const filePath = file && (file as any).path
     if (!filePath) return
