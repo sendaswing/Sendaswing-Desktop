@@ -15,9 +15,11 @@ interface RecordingStore {
   slotRecordings: SlotRecording[]
   isRecordingAll: boolean
   pendingClub: string
+  countdown: number | null
   setSlotRecording: (slotIndex: number, update: Partial<SlotRecording>) => void
   setIsRecordingAll: (val: boolean) => void
   setPendingClub: (club: string) => void
+  setCountdown: (n: number | null) => void
 }
 
 const defaultSlotRecording = (index: number): SlotRecording => ({
@@ -33,23 +35,19 @@ export const useRecordingStore = create<RecordingStore>()(
     slotRecordings: [0, 1, 2, 3].map(defaultSlotRecording),
     isRecordingAll: false,
     pendingClub: '',
+    countdown: null,
 
     setSlotRecording: (slotIndex, update) => {
-      set((state) => {
-        Object.assign(state.slotRecordings[slotIndex], update)
-      })
+      set((state) => { Object.assign(state.slotRecordings[slotIndex], update) })
     },
-
     setIsRecordingAll: (val) => {
-      set((state) => {
-        state.isRecordingAll = val
-      })
+      set((state) => { state.isRecordingAll = val })
     },
-
     setPendingClub: (club) => {
-      set((state) => {
-        state.pendingClub = club
-      })
+      set((state) => { state.pendingClub = club })
+    },
+    setCountdown: (n) => {
+      set((state) => { state.countdown = n })
     }
   }))
 )
