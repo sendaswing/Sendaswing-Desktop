@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { BookOpen, Search, Settings } from 'lucide-react'
 import { useSettingsStore } from '../../store/settingsStore'
 import { useAnalysisStore } from '../../store/analysisStore'
+import { makeSemaphore } from '../../lib/utils/semaphore'
 import type { Clip } from '../../types/clip'
 import type { AppRoute } from '../layout/Sidebar'
 
@@ -12,25 +13,6 @@ interface LibraryViewProps {
 interface LibraryFile {
   name: string
   filePath: string
-}
-
-// Shared concurrency semaphore — at most 4 thumbnail loads in parallel
-function makeSemaphore(max: number) {
-  let running = 0
-  const queue: Array<() => void> = []
-  return {
-    acquire(): Promise<void> {
-      return new Promise((resolve) => {
-        if (running < max) { running++; resolve() }
-        else queue.push(resolve)
-      })
-    },
-    release() {
-      running--
-      const next = queue.shift()
-      if (next) { running++; next() }
-    }
-  }
 }
 
 function VideoThumbnail({
@@ -49,30 +31,45 @@ function VideoThumbnail({
   const loadThumbnail = useCallback(async () => {
     if (thumbUrl || loading) return
     setLoading(true)
-    await semaphore.acquire()
     try {
-      const buffer: ArrayBuffer = await (window as any).electronAPI.fs.readFileAsBuffer(file.filePath)
-      const blob = new Blob([buffer])
-      const objectUrl = URL.createObjectURL(blob)
-      const video = document.createElement('video')
-      video.src = objectUrl
-      video.muted = true
-      video.currentTime = 0.5
-      await new Promise<void>((res) => {
-        video.onseeked = () => res()
-        video.onerror = () => res()
+      // Fast path: OS shell thumbnail cache (near-instant for MP4)
+      const dataUrl: string | null = await (window as any).electronAPI.fs.getThumbnail(file.filePath)
+      if (dataUrl) { setThumbUrl(dataUrl); return }
+
+      // Fallback: seek video element
+      await semaphore.acquire()
+      let objectUrl = ''
+      try {
+        const buffer: ArrayBuffer = await (window as any).electronAPI.fs.readFileAsBuffer(file.filePath)
+        const blob = new Blob([buffer])
+        objectUrl = URL.createObjectURL(blob)
+        const video = document.createElement('video')
+        video.src = objectUrl
+        video.muted = true
         video.load()
-      })
-      const canvas = document.createElement('canvas')
-      canvas.width = 320
-      canvas.height = 180
-      canvas.getContext('2d')?.drawImage(video, 0, 0, 320, 180)
-      URL.revokeObjectURL(objectUrl)
-      setThumbUrl(canvas.toDataURL('image/jpeg', 0.7))
+        await new Promise<void>((res) => {
+          video.onloadedmetadata = () => {
+            video.currentTime = isFinite(video.duration) && video.duration > 0
+              ? Math.min(1, video.duration * 0.1)
+              : 0.5
+          }
+          video.onseeked = () => res()
+          video.onerror = () => res()
+        })
+        const oc = new OffscreenCanvas(320, 180)
+        oc.getContext('2d')!.drawImage(video, 0, 0, 320, 180)
+        const imgBitmap = oc.transferToImageBitmap()
+        const canvas = document.createElement('canvas')
+        canvas.width = 320; canvas.height = 180
+        canvas.getContext('bitmaprenderer')!.transferFromImageBitmap(imgBitmap)
+        setThumbUrl(canvas.toDataURL('image/jpeg', 0.7))
+      } catch {
+      } finally {
+        if (objectUrl) URL.revokeObjectURL(objectUrl)
+        semaphore.release()
+      }
     } catch {
-      // leave thumb null — no thumbnail available
     } finally {
-      semaphore.release()
       setLoading(false)
     }
   }, [file.filePath, thumbUrl, loading, semaphore])

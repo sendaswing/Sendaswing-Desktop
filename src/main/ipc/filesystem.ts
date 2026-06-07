@@ -1,4 +1,4 @@
-import { ipcMain, app, dialog } from 'electron'
+import { ipcMain, app, dialog, nativeImage } from 'electron'
 import { readFileSync, mkdirSync, readdirSync } from 'fs'
 import { join, extname, basename } from 'path'
 
@@ -45,6 +45,16 @@ export function registerFilesystemHandlers(): void {
       .map((name) => ({ name, filePath: join(folderPath, name) }))
 
     return { folderPath, files }
+  })
+
+  ipcMain.handle('fs:get-thumbnail', async (_event, filePath: string) => {
+    try {
+      const img = await nativeImage.createThumbnailFromPath(filePath, { width: 320, height: 180 })
+      if (img.isEmpty()) return null
+      return img.toDataURL()
+    } catch {
+      return null
+    }
   })
 
   ipcMain.handle('fs:scan-directory', (_event, dirPath: string) => {

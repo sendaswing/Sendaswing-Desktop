@@ -19,7 +19,9 @@ const electronAPI = {
     scanFolder: (): Promise<{ folderPath: string; files: Array<{ name: string; filePath: string }> } | null> =>
       ipcRenderer.invoke('fs:scan-folder'),
     scanDirectory: (dirPath: string): Promise<{ folderPath: string; files: Array<{ name: string; filePath: string }> } | null> =>
-      ipcRenderer.invoke('fs:scan-directory', dirPath)
+      ipcRenderer.invoke('fs:scan-directory', dirPath),
+    getThumbnail: (filePath: string): Promise<string | null> =>
+      ipcRenderer.invoke('fs:get-thumbnail', filePath)
   },
   titlebar: {
     minimize: () => ipcRenderer.send('titlebar:minimize'),

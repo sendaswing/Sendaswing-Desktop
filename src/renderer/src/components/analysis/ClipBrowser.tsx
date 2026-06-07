@@ -4,7 +4,10 @@ import { useClipStore } from '../../store/clipStore'
 import { useAnalysisStore } from '../../store/analysisStore'
 import { useSettingsStore } from '../../store/settingsStore'
 import { cn } from '../../lib/utils/cn'
+import { makeSemaphore } from '../../lib/utils/semaphore'
 import type { Clip, CameraAngle, ClubType } from '../../types/clip'
+
+const thumbSemaphore = makeSemaphore(3)
 
 const ANGLES: CameraAngle[] = ['FO', 'DL', 'Other']
 const CLUBS: ClubType[] = ['Driver', 'Iron', 'Wedge', 'FW', 'Hybrid', 'Putt']
@@ -270,54 +273,69 @@ function TagEditor({ clipId }: { clipId: string }) {
 }
 
 function ClipItem({ clip, isActive, onClick }: { clip: Clip; isActive: boolean; onClick?: () => void }) {
-  const thumbCanvasRef = useRef<HTMLCanvasElement>(null)
-  const [thumbReady, setThumbReady] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [thumbSrc, setThumbSrc] = useState<string | null>(null)
 
   useEffect(() => {
-    let revoke = ''
-    const canvas = thumbCanvasRef.current
-    if (!canvas) return
+    const el = containerRef.current
+    if (!el) return
+    let cancelled = false
 
-    const generate = async () => {
+    const load = async () => {
+      // Fast path: OS shell thumbnail cache (near-instant for MP4)
+      const dataUrl: string | null = await (window as any).electronAPI.fs.getThumbnail(clip.filePath)
+      if (cancelled) return
+      if (dataUrl) { setThumbSrc(dataUrl); return }
+
+      // Fallback: seek video element, gated by semaphore
+      await thumbSemaphore.acquire()
+      if (cancelled) { thumbSemaphore.release(); return }
+      let objectUrl = ''
       try {
         const buffer: ArrayBuffer = await (window as any).electronAPI.fs.readFileAsBuffer(clip.filePath)
+        if (cancelled) return
         const blob = new Blob([buffer])
-        const url = URL.createObjectURL(blob)
-        revoke = url
-
+        objectUrl = URL.createObjectURL(blob)
         const video = document.createElement('video')
-        video.src = url
+        video.src = objectUrl
         video.muted = true
         video.preload = 'metadata'
         video.load()
-
-        video.onloadedmetadata = () => {
-          const seekTo = isFinite(video.duration) && video.duration > 0
-            ? Math.min(1, video.duration * 0.1)
-            : 0.5
-          video.currentTime = seekTo
-        }
-
-        video.onerror = () => { URL.revokeObjectURL(url) }
-
-        video.onseeked = () => {
-          const ctx = canvas.getContext('2d')
-          if (!ctx) return
-          canvas.width = 192
-          canvas.height = 108
-          ctx.drawImage(video, 0, 0, 192, 108)
-          setThumbReady(true)
-          URL.revokeObjectURL(url)
-        }
-      } catch {}
+        await new Promise<void>((res) => {
+          video.onloadedmetadata = () => {
+            video.currentTime = isFinite(video.duration) && video.duration > 0
+              ? Math.min(1, video.duration * 0.1)
+              : 0.5
+          }
+          video.onseeked = () => res()
+          video.onerror = () => res()
+        })
+        if (cancelled) return
+        const oc = new OffscreenCanvas(192, 108)
+        oc.getContext('2d')!.drawImage(video, 0, 0, 192, 108)
+        const imgBitmap = oc.transferToImageBitmap()
+        const canvas = document.createElement('canvas')
+        canvas.width = 192; canvas.height = 108
+        canvas.getContext('bitmaprenderer')!.transferFromImageBitmap(imgBitmap)
+        if (!cancelled) setThumbSrc(canvas.toDataURL('image/jpeg', 0.7))
+      } catch {
+      } finally {
+        if (objectUrl) URL.revokeObjectURL(objectUrl)
+        thumbSemaphore.release()
+      }
     }
 
-    generate()
-    return () => { if (revoke) URL.revokeObjectURL(revoke) }
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { obs.disconnect(); load() } },
+      { rootMargin: '100px' }
+    )
+    obs.observe(el)
+    return () => { cancelled = true; obs.disconnect() }
   }, [clip.filePath])
 
   return (
     <div
+      ref={containerRef}
       draggable
       onDragStart={(e) => e.dataTransfer.setData('text/plain', `${clip.filePath}\n${clip.name}`)}
       onContextMenu={(e) => e.preventDefault()}
@@ -330,15 +348,12 @@ function ClipItem({ clip, isActive, onClick }: { clip: Clip; isActive: boolean; 
       )}
     >
       <div className="relative w-full aspect-video bg-black/60">
-        <canvas
-          ref={thumbCanvasRef}
-          className={cn('w-full h-full object-cover', thumbReady ? 'opacity-100' : 'opacity-0')}
-        />
-        {!thumbReady && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Film size={18} className="text-white/20" />
-          </div>
-        )}
+        {thumbSrc
+          ? <img src={thumbSrc} className="w-full h-full object-cover" alt="" />
+          : <div className="absolute inset-0 flex items-center justify-center">
+              <Film size={18} className="text-white/20" />
+            </div>
+        }
         {(clip.cameraAngle || clip.club) && (
           <div className="absolute bottom-1 right-1 flex gap-1">
             {clip.cameraAngle && (
