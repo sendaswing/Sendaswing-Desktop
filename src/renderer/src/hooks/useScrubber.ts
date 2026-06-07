@@ -14,6 +14,7 @@ export function useScrubber(
   options?: UseScrubberOptions
 ) {
   const engineRef = useRef<ScrubberEngine | null>(null)
+  const loadSeqRef = useRef(0)
   const [isLoaded, setIsLoaded] = useState(false)
   const [preloadProgress, setPreloadProgress] = useState(0)
   const [loadFailed, setLoadFailed] = useState(false)
@@ -47,13 +48,17 @@ export function useScrubber(
 
   const loadClip = useCallback(async (filePath: string) => {
     if (!engineRef.current) return
+    const seq = ++loadSeqRef.current
     setIsLoaded(false)
     setLoadFailed(false)
     setPreloadProgress(0)
 
     try {
       const buffer: ArrayBuffer = await (window as any).electronAPI.fs.readFileAsBuffer(filePath)
+      if (seq !== loadSeqRef.current) return
+
       const result = await engineRef.current.load(buffer)
+      if (seq !== loadSeqRef.current) return
 
       totalFramesCb(result.frameCount)
       fpsCb(result.fps)
@@ -65,6 +70,7 @@ export function useScrubber(
       setIsLoaded(true)
       engineRef.current.play(0.5)
     } catch (err) {
+      if (seq !== loadSeqRef.current) return
       console.warn('[useScrubber] WebCodecs load failed, falling back to HTML5:', err)
       setLoadFailed(true)
       setPreloadProgress(1)
