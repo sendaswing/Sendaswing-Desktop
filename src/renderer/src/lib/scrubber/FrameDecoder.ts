@@ -15,6 +15,7 @@ export class FrameDecoder {
   private config: DecoderConfig | null = null
   private fps = 30
   private sampleIndexByUs = new Map<number, number>()
+  private generation = 0
 
   // Tracks the last keyframe group submitted to the decoder for sequential decode
   private lastKeyframeGroup = -1
@@ -24,6 +25,7 @@ export class FrameDecoder {
   }
 
   async init(config: DecoderConfig): Promise<void> {
+    this.generation++
     // Close any existing decoder before creating a new one to prevent accumulation
     if (this.decoder && this.decoder.state !== 'closed') this.decoder.close()
     this.pendingCallbacks.clear()
@@ -158,9 +160,11 @@ export class FrameDecoder {
 
   private onFrame(frame: VideoFrame): void {
     const ts = frame.timestamp
+    const gen = this.generation
 
     createImageBitmap(frame).then((bitmap) => {
       frame.close()
+      if (this.generation !== gen) { bitmap.close(); return }
       const frameIdx = this.sampleIndexByUs.get(ts) ?? this.timestampUsToFrameIndex(ts)
       this.cache.put(frameIdx, bitmap)
 
