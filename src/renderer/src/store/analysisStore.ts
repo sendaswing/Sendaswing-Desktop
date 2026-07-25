@@ -38,8 +38,8 @@ const defaultLayer: AnnotationLayer = {
 }
 
 const defaultStyle: AnnotationStyle = {
-  color: '#22c55e',
-  strokeWidth: 3,
+  color: '#fde047',
+  strokeWidth: 4,
   opacity: 1
 }
 
@@ -54,7 +54,7 @@ export const useAnalysisStore = create<AnalysisStore>()(
 
     annotations: [{ ...defaultLayer }],
     activeLayerIndex: 0,
-    activeTool: null,
+    activeTool: 'line',
     activeStyle: defaultStyle,
 
     setActiveClip: (clip) => {

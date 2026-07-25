@@ -1,4 +1,5 @@
 import React, { useCallback, useRef, useEffect, useState } from 'react'
+import { Maximize2 } from 'lucide-react'
 import { useScrubber } from '../../hooks/useScrubber'
 import { useVideoElement } from '../../hooks/useVideoElement'
 import { DrawingCanvas } from './DrawingCanvas'
@@ -7,6 +8,7 @@ import { PlaybackControls } from './PlaybackControls'
 import { useAnalysisStore } from '../../store/analysisStore'
 import { useClipStore } from '../../store/clipStore'
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
+import { useViewTransform } from '../../hooks/useViewTransform'
 import type { Clip } from '../../types/clip'
 
 interface VideoPlayerProps {
@@ -24,6 +26,10 @@ export function VideoPlayer({ clipPath, clipDuration }: VideoPlayerProps) {
   const { playbackSpeed, currentFrame, totalFrames, fps, isPlaying, setActiveClip } = useAnalysisStore()
   const { addClip } = useClipStore()
   const [isDragOver, setIsDragOver] = useState(false)
+
+  const { containerRef, viewportStyle, handlePointerDownCapture, handlePointerMoveCapture, handlePointerUpCapture, reset, isAtDefault, isPanning } = useViewTransform(
+    () => useAnalysisStore.getState().activeTool
+  )
 
   useEffect(() => {
     if (!clipPath) return
@@ -117,28 +123,47 @@ export function VideoPlayer({ clipPath, clipDuration }: VideoPlayerProps) {
   return (
     <div className="flex flex-col h-full">
       <div
+        ref={containerRef}
         className={`relative flex-1 min-h-0 bg-black overflow-hidden transition-shadow ${isDragOver ? 'ring-2 ring-inset ring-accent-400/60' : ''}`}
+        style={{ cursor: isPanning ? 'grabbing' : undefined }}
         onDragOver={(e) => { e.preventDefault(); setIsDragOver(true) }}
         onDragLeave={() => setIsDragOver(false)}
         onDrop={handleDrop}
+        onPointerDownCapture={handlePointerDownCapture}
+        onPointerMoveCapture={handlePointerMoveCapture}
+        onPointerUpCapture={handlePointerUpCapture}
       >
-        {/* WebCodecs canvas — hidden when falling back to HTML5 */}
-        <canvas
-          ref={canvasRef}
-          className={`w-full h-full object-contain ${loadFailed ? 'hidden' : ''}`}
-        />
-
-        {/* HTML5 video fallback */}
-        {loadFailed && (
-          <video
-            ref={attachVideo}
-            className="w-full h-full object-contain"
-            playsInline
-            preload="auto"
+        {/* Transformed viewport: canvas + drawing overlay move together */}
+        <div style={viewportStyle}>
+          {/* WebCodecs canvas — hidden when falling back to HTML5 */}
+          <canvas
+            ref={canvasRef}
+            className={`w-full h-full object-contain ${loadFailed ? 'hidden' : ''}`}
           />
-        )}
 
-        {clipPath && effectivelyLoaded && <DrawingCanvas />}
+          {/* HTML5 video fallback */}
+          {loadFailed && (
+            <video
+              ref={attachVideo}
+              className="w-full h-full object-contain"
+              playsInline
+              preload="auto"
+            />
+          )}
+
+          {clipPath && effectivelyLoaded && <DrawingCanvas />}
+        </div>
+
+        {/* Reset zoom button — outside transform so it stays pinned to corner */}
+        {!isAtDefault && (
+          <button
+            onClick={reset}
+            title="Reset zoom"
+            className="absolute top-2 left-2 p-1 rounded bg-black/60 text-white/60 hover:text-white transition-colors z-10"
+          >
+            <Maximize2 size={12} />
+          </button>
+        )}
 
         {!clipPath && (
           <div className="absolute inset-0 flex items-center justify-center text-white/20 text-sm select-none pointer-events-none">

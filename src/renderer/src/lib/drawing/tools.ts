@@ -18,20 +18,18 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 ]
 
 export const DEFAULT_STYLE: AnnotationStyle = {
-  color: '#22c55e',
-  strokeWidth: 3,
+  color: '#fde047',
+  strokeWidth: 4,
   opacity: 1
 }
 
 export const STROKE_WIDTHS = [2, 4, 6] as const
 
 export const TOOL_COLORS = [
-  '#22c55e', // green
+  '#fde047', // yellow
   '#ef4444', // red
+  '#22c55e', // green
   '#3b82f6', // blue
-  '#f59e0b', // yellow
-  '#a855f7', // purple
-  '#ffffff'  // white
 ]
 
 export function calcAngle(vertex: Point, p1: Point, p2: Point): number {
