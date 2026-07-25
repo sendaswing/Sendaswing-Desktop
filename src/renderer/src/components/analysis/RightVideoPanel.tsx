@@ -10,7 +10,8 @@ import { useClipStore } from '../../store/clipStore'
 import { useSettingsStore } from '../../store/settingsStore'
 import type { Clip } from '../../types/clip'
 import type { Annotation, AnnotationLayer } from '../../types/drawing'
-import { FolderSearch, FolderOpen } from 'lucide-react'
+import { FolderSearch, FolderOpen, Trash2, Maximize2 } from 'lucide-react'
+import { useViewTransform } from '../../hooks/useViewTransform'
 
 const mkDefaultLayer = (): AnnotationLayer => ({ id: 'right-default', name: 'Layer 1', annotations: [], visible: true })
 
@@ -49,6 +50,10 @@ export function RightVideoPanel() {
   const { rightClip, setRightClip, isSynced, leftFrame } = useComparisonStore()
   const { activeClip } = useAnalysisStore()
   const { addClip } = useClipStore()
+
+  const { containerRef, viewportStyle, handlePointerDownCapture, handlePointerMoveCapture, handlePointerUpCapture, reset, isAtDefault, isPanning } = useViewTransform(
+    () => useAnalysisStore.getState().activeTool
+  )
 
   useEffect(() => {
     if (!rightClip) return
@@ -135,31 +140,50 @@ export function RightVideoPanel() {
   return (
     <div className="flex flex-col h-full">
       <div
+        ref={containerRef}
         className={`relative flex-1 min-h-0 bg-black overflow-hidden transition-shadow ${isDragOver ? 'ring-2 ring-inset ring-accent-400/60' : ''}`}
+        style={{ cursor: isPanning ? 'grabbing' : undefined }}
         onDragOver={(e) => { e.preventDefault(); setIsDragOver(true) }}
         onDragLeave={() => setIsDragOver(false)}
         onDrop={handleDrop}
+        onPointerDownCapture={handlePointerDownCapture}
+        onPointerMoveCapture={handlePointerMoveCapture}
+        onPointerUpCapture={handlePointerUpCapture}
       >
-        <canvas
-          ref={canvasRef}
-          className={`w-full h-full object-contain ${loadFailed ? 'hidden' : ''}`}
-        />
-
-        {loadFailed && (
-          <video
-            ref={attachVideo}
-            className="w-full h-full object-contain"
-            playsInline
-            preload="auto"
+        {/* Transformed viewport: canvas + drawing overlay move together */}
+        <div style={viewportStyle}>
+          <canvas
+            ref={canvasRef}
+            className={`w-full h-full object-contain ${loadFailed ? 'hidden' : ''}`}
           />
-        )}
 
-        {rightClip && effectivelyLoaded && (
-          <DrawingCanvas
-            annotations={annotations}
-            onAddAnnotation={handleAddAnnotation}
-            frameIndex={currentFrame}
-          />
+          {loadFailed && (
+            <video
+              ref={attachVideo}
+              className="w-full h-full object-contain"
+              playsInline
+              preload="auto"
+            />
+          )}
+
+          {rightClip && effectivelyLoaded && (
+            <DrawingCanvas
+              annotations={annotations}
+              onAddAnnotation={handleAddAnnotation}
+              frameIndex={currentFrame}
+            />
+          )}
+        </div>
+
+        {/* Reset zoom button — pinned outside transform */}
+        {!isAtDefault && (
+          <button
+            onClick={reset}
+            title="Reset zoom"
+            className="absolute top-2 left-2 p-1 rounded bg-black/60 text-white/60 hover:text-white transition-colors z-10"
+          >
+            <Maximize2 size={12} />
+          </button>
         )}
 
         {!rightClip && <RightClipPicker />}
@@ -171,13 +195,20 @@ export function RightVideoPanel() {
         )}
 
         {rightClip && effectivelyLoaded && (
-          <div className="absolute top-2 right-2 flex gap-1">
+          <div className="absolute top-2 right-2 flex items-center gap-1">
             {rightClip.cameraAngle && (
               <span className="bg-accent-500/80 text-black text-xs font-bold px-1.5 py-0.5 rounded">{rightClip.cameraAngle}</span>
             )}
             {rightClip.club && (
               <span className="bg-white/20 text-white text-xs px-1.5 py-0.5 rounded">{rightClip.club}</span>
             )}
+            <button
+              onClick={() => setAnnotations([mkDefaultLayer()])}
+              title="Clear annotations"
+              className="p-1 rounded text-white/30 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+            >
+              <Trash2 size={13} />
+            </button>
           </div>
         )}
 
