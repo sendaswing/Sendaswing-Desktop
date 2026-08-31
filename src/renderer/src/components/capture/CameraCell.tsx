@@ -42,6 +42,10 @@ export function CameraCell({ slotIndex }: CameraCellProps) {
             muted
             playsInline
             className="w-full h-full object-contain"
+            style={{
+              transform: [slot.flipH && 'scaleX(-1)', slot.flipV && 'scaleY(-1)']
+                .filter(Boolean).join(' ') || undefined
+            }}
           />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-white/20">
@@ -83,7 +87,7 @@ export function CameraCell({ slotIndex }: CameraCellProps) {
 
         {/* Camera settings panel */}
         {showSettings && slot.stream && (
-          <CameraSettingsPanel stream={slot.stream} onClose={() => setShowSettings(false)} />
+          <CameraSettingsPanel slotIndex={slotIndex} stream={slot.stream} onClose={() => setShowSettings(false)} />
         )}
       </div>
 

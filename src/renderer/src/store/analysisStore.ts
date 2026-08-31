@@ -23,6 +23,9 @@ interface AnalysisStore {
   setIsPlaying: (val: boolean) => void
   setPlaybackSpeed: (speed: number) => void
 
+  flipH: boolean
+  setFlipH: (val: boolean) => void
+
   setActiveTool: (tool: DrawingToolType | null) => void
   setActiveStyle: (style: Partial<AnnotationStyle>) => void
   addAnnotation: (annotation: Annotation) => void
@@ -56,6 +59,7 @@ export const useAnalysisStore = create<AnalysisStore>()(
     activeLayerIndex: 0,
     activeTool: 'line',
     activeStyle: defaultStyle,
+    flipH: false,
 
     setActiveClip: (clip) => {
       set((state) => {
@@ -94,6 +98,10 @@ export const useAnalysisStore = create<AnalysisStore>()(
       set((state) => {
         state.playbackSpeed = speed
       })
+    },
+
+    setFlipH: (val) => {
+      set((state) => { state.flipH = val })
     },
 
     setActiveTool: (tool) => {

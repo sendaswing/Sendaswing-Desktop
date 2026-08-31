@@ -23,7 +23,7 @@ export function VideoPlayer({ clipPath, clipDuration }: VideoPlayerProps) {
   // HTML5 fallback for unsupported codecs
   const { attachVideo, isLoaded: html5Loaded, loadFile, seekToFrame, play: html5Play, pause: html5Pause, stepForward: html5StepForward, stepBackward: html5StepBackward } = useVideoElement()
 
-  const { playbackSpeed, currentFrame, totalFrames, fps, isPlaying, setActiveClip } = useAnalysisStore()
+  const { playbackSpeed, currentFrame, totalFrames, fps, isPlaying, setActiveClip, flipH } = useAnalysisStore()
   const { addClip } = useClipStore()
   const [isDragOver, setIsDragOver] = useState(false)
 
@@ -133,25 +133,28 @@ export function VideoPlayer({ clipPath, clipDuration }: VideoPlayerProps) {
         onPointerMoveCapture={handlePointerMoveCapture}
         onPointerUpCapture={handlePointerUpCapture}
       >
-        {/* Transformed viewport: canvas + drawing overlay move together */}
+        {/* Transformed viewport: pan/zoom wrapper */}
         <div style={viewportStyle}>
-          {/* WebCodecs canvas — hidden when falling back to HTML5 */}
-          <canvas
-            ref={canvasRef}
-            className={`w-full h-full object-contain ${loadFailed ? 'hidden' : ''}`}
-          />
-
-          {/* HTML5 video fallback */}
-          {loadFailed && (
-            <video
-              ref={attachVideo}
-              className="w-full h-full object-contain"
-              playsInline
-              preload="auto"
+          {/* Flip wrapper — scaleX(-1) when flipH is active */}
+          <div style={{ position: 'absolute', inset: 0, transform: flipH ? 'scaleX(-1)' : undefined }}>
+            {/* WebCodecs canvas — hidden when falling back to HTML5 */}
+            <canvas
+              ref={canvasRef}
+              className={`w-full h-full object-contain ${loadFailed ? 'hidden' : ''}`}
             />
-          )}
 
-          {clipPath && effectivelyLoaded && <DrawingCanvas />}
+            {/* HTML5 video fallback */}
+            {loadFailed && (
+              <video
+                ref={attachVideo}
+                className="w-full h-full object-contain"
+                playsInline
+                preload="auto"
+              />
+            )}
+
+            {clipPath && effectivelyLoaded && <DrawingCanvas />}
+          </div>
         </div>
 
         {/* Reset zoom button — outside transform so it stays pinned to corner */}

@@ -10,7 +10,7 @@ import { useClipStore } from '../../store/clipStore'
 import { useSettingsStore } from '../../store/settingsStore'
 import type { Clip } from '../../types/clip'
 import type { Annotation, AnnotationLayer } from '../../types/drawing'
-import { FolderSearch, FolderOpen, Trash2, Maximize2 } from 'lucide-react'
+import { FolderSearch, FolderOpen, Trash2, Maximize2, FlipHorizontal } from 'lucide-react'
 import { useViewTransform } from '../../hooks/useViewTransform'
 
 const mkDefaultLayer = (): AnnotationLayer => ({ id: 'right-default', name: 'Layer 1', annotations: [], visible: true })
@@ -37,6 +37,7 @@ export function RightVideoPanel() {
   const [playbackSpeed, setPlaybackSpeed] = useState(1)
   const [annotations, setAnnotations] = useState<AnnotationLayer[]>([mkDefaultLayer()])
   const [isDragOver, setIsDragOver] = useState(false)
+  const [flipH, setFlipH] = useState(false)
 
   const { isLoaded, loadFailed, preloadProgress, loadClip, seek, play, pause, stepForward, stepBackward } = useScrubber(canvasRef, {
     onFrameChange: setCurrentFrame,
@@ -150,29 +151,32 @@ export function RightVideoPanel() {
         onPointerMoveCapture={handlePointerMoveCapture}
         onPointerUpCapture={handlePointerUpCapture}
       >
-        {/* Transformed viewport: canvas + drawing overlay move together */}
+        {/* Transformed viewport: pan/zoom wrapper */}
         <div style={viewportStyle}>
-          <canvas
-            ref={canvasRef}
-            className={`w-full h-full object-contain ${loadFailed ? 'hidden' : ''}`}
-          />
-
-          {loadFailed && (
-            <video
-              ref={attachVideo}
-              className="w-full h-full object-contain"
-              playsInline
-              preload="auto"
+          {/* Flip wrapper */}
+          <div style={{ position: 'absolute', inset: 0, transform: flipH ? 'scaleX(-1)' : undefined }}>
+            <canvas
+              ref={canvasRef}
+              className={`w-full h-full object-contain ${loadFailed ? 'hidden' : ''}`}
             />
-          )}
 
-          {rightClip && effectivelyLoaded && (
-            <DrawingCanvas
-              annotations={annotations}
-              onAddAnnotation={handleAddAnnotation}
-              frameIndex={currentFrame}
-            />
-          )}
+            {loadFailed && (
+              <video
+                ref={attachVideo}
+                className="w-full h-full object-contain"
+                playsInline
+                preload="auto"
+              />
+            )}
+
+            {rightClip && effectivelyLoaded && (
+              <DrawingCanvas
+                annotations={annotations}
+                onAddAnnotation={handleAddAnnotation}
+                frameIndex={currentFrame}
+              />
+            )}
+          </div>
         </div>
 
         {/* Reset zoom button — pinned outside transform */}
@@ -202,6 +206,13 @@ export function RightVideoPanel() {
             {rightClip.club && (
               <span className="bg-white/20 text-white text-xs px-1.5 py-0.5 rounded">{rightClip.club}</span>
             )}
+            <button
+              onClick={() => setFlipH((v) => !v)}
+              title="Flip horizontal"
+              className={`p-1 rounded transition-colors ${flipH ? 'bg-white/15 text-white' : 'text-white/30 hover:text-white/60 hover:bg-white/10'}`}
+            >
+              <FlipHorizontal size={13} />
+            </button>
             <button
               onClick={() => setAnnotations([mkDefaultLayer()])}
               title="Clear annotations"
