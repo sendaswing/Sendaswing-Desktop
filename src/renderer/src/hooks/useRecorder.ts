@@ -2,9 +2,12 @@ import { useCallback, useRef } from 'react'
 import { useRecordingStore } from '../store/recordingStore'
 import { useClipStore } from '../store/clipStore'
 import { useSettingsStore } from '../store/settingsStore'
+import { useCameraStore } from '../store/cameraStore'
 import { RecordingSession } from '../lib/recording/RecordingSession'
+import { FlipProxy } from '../lib/recording/FlipProxy'
 
 const sessions = new Map<number, RecordingSession>()
+const proxies = new Map<number, FlipProxy>()
 
 const sleep = (ms: number) => new Promise<void>((res) => setTimeout(res, ms))
 
@@ -16,9 +19,19 @@ export function useRecorder() {
   const cancelledRef = useRef(false)
 
   const startRecording = useCallback(async (slotIndex: number, stream: MediaStream, label: string, cameraAngle: string, club: string, swingNumber: number) => {
+    // If the slot has a flip active, route through a canvas proxy so the
+    // recorded file matches the flipped live preview orientation.
+    const { flipH, flipV } = useCameraStore.getState().slots[slotIndex]
+    let recordStream = stream
+    if (flipH || flipV) {
+      const proxy = new FlipProxy(stream, flipH, flipV)
+      proxies.set(slotIndex, proxy)
+      recordStream = proxy.proxyStream
+    }
+
     const session = new RecordingSession(slotIndex, label, cameraAngle, club, swingNumber)
     sessions.set(slotIndex, session)
-    const sessionId = await session.start(stream)
+    const sessionId = await session.start(recordStream)
     setSlotRecording(slotIndex, { status: 'recording', sessionId, startTime: Date.now(), elapsed: 0 })
   }, [])
 
@@ -28,6 +41,9 @@ export function useRecorder() {
     setSlotRecording(slotIndex, { status: 'stopping' })
     const clip = await session.stop()
     sessions.delete(slotIndex)
+    // Clean up any flip proxy for this slot
+    const proxy = proxies.get(slotIndex)
+    if (proxy) { proxy.stop(); proxies.delete(slotIndex) }
     if (clip) addClip(clip)
     setSlotRecording(slotIndex, { status: 'saved', sessionId: null })
     setTimeout(() => setSlotRecording(slotIndex, { status: 'idle' }), 2000)
