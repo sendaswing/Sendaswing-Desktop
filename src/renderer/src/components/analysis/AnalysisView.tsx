@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Square, Columns } from 'lucide-react'
+import { Square, Columns, FlipHorizontal } from 'lucide-react'
 import { ClipBrowser } from './ClipBrowser'
 import { VideoPlayer } from './VideoPlayer'
 import { ToolPalette } from './ToolPalette'
@@ -9,7 +9,7 @@ import { useAnalysisStore } from '../../store/analysisStore'
 import { cn } from '../../lib/utils/cn'
 
 export function AnalysisView() {
-  const { activeClip } = useAnalysisStore()
+  const { activeClip, flipH, setFlipH } = useAnalysisStore()
   const [dualMode, setDualMode] = useState(false)
 
   return (
@@ -29,6 +29,13 @@ export function AnalysisView() {
           className={cn('p-1.5 rounded transition-colors', dualMode ? 'bg-white/15 text-white' : 'text-white/30 hover:text-white/60 hover:bg-white/5')}
         >
           <Columns size={13} />
+        </button>
+        <button
+          onClick={() => setFlipH(!flipH)}
+          title="Flip horizontal"
+          className={cn('p-1.5 rounded transition-colors', flipH ? 'bg-white/15 text-white' : 'text-white/30 hover:text-white/60 hover:bg-white/5')}
+        >
+          <FlipHorizontal size={13} />
         </button>
         <div className="flex-1" />
         {dualMode && <SyncControls />}

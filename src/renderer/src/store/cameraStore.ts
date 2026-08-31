@@ -12,6 +12,7 @@ interface CameraStore {
   setSlotStatus: (slotIndex: number, status: CameraSlot['status'], error?: string) => void
   setGridLayout: (layout: GridLayout) => void
   setCameraAngle: (slotIndex: number, angle: CameraAngle) => void
+  setFlip: (slotIndex: number, axis: 'H' | 'V', value: boolean) => void
 }
 
 const defaultSlot = (index: number): CameraSlot => ({
@@ -21,7 +22,9 @@ const defaultSlot = (index: number): CameraSlot => ({
   stream: null,
   status: 'idle',
   error: null,
-  cameraAngle: ''
+  cameraAngle: '',
+  flipH: false,
+  flipV: false
 })
 
 export const useCameraStore = create<CameraStore>()(
@@ -71,6 +74,13 @@ export const useCameraStore = create<CameraStore>()(
     setCameraAngle: (slotIndex, angle) => {
       set((state) => {
         state.slots[slotIndex].cameraAngle = angle
+      })
+    },
+
+    setFlip: (slotIndex, axis, value) => {
+      set((state) => {
+        if (axis === 'H') state.slots[slotIndex].flipH = value
+        else state.slots[slotIndex].flipV = value
       })
     }
   }))

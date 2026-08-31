@@ -9,4 +9,6 @@ export interface CameraSlot {
   status: 'idle' | 'streaming' | 'error'
   error: string | null
   cameraAngle: CameraAngle
+  flipH: boolean
+  flipV: boolean
 }

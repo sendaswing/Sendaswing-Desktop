@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { X } from 'lucide-react'
+import { X, FlipHorizontal, FlipVertical } from 'lucide-react'
+import { useCameraStore } from '../../store/cameraStore'
 
 interface RangeCapability { min: number; max: number; step?: number }
 
@@ -30,6 +31,7 @@ interface ExtSettings {
 }
 
 interface Props {
+  slotIndex: number
   stream: MediaStream
   onClose: () => void
 }
@@ -38,7 +40,9 @@ function hasRange(cap: RangeCapability | undefined): cap is RangeCapability {
   return !!cap && cap.max > cap.min
 }
 
-export function CameraSettingsPanel({ stream, onClose }: Props) {
+export function CameraSettingsPanel({ slotIndex, stream, onClose }: Props) {
+  const slot = useCameraStore((s) => s.slots[slotIndex])
+  const setFlip = useCameraStore((s) => s.setFlip)
   const track = stream.getVideoTracks()[0]
   const caps = (track?.getCapabilities?.() ?? {}) as ExtCapabilities
   const [settings, setSettings] = useState<ExtSettings>(() => (track?.getSettings?.() ?? {}) as ExtSettings)
@@ -86,6 +90,29 @@ export function CameraSettingsPanel({ stream, onClose }: Props) {
       </div>
 
       <div className="flex-1 px-3 py-3 space-y-4">
+        {/* Flip controls — always visible */}
+        <div className="space-y-1">
+          <span className="text-white/40 text-xs uppercase tracking-wider">Flip</span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setFlip(slotIndex, 'H', !slot.flipH)}
+              className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
+                slot.flipH ? 'bg-accent-500 text-black font-semibold' : 'bg-white/5 text-white/50 hover:bg-white/10'
+              }`}
+            >
+              <FlipHorizontal size={12} /> Horizontal
+            </button>
+            <button
+              onClick={() => setFlip(slotIndex, 'V', !slot.flipV)}
+              className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
+                slot.flipV ? 'bg-accent-500 text-black font-semibold' : 'bg-white/5 text-white/50 hover:bg-white/10'
+              }`}
+            >
+              <FlipVertical size={12} /> Vertical
+            </button>
+          </div>
+        </div>
+
         {!hasAnyControl ? (
           <p className="text-white/30 text-xs text-center pt-4">No adjustable settings for this camera.</p>
         ) : (
