@@ -179,7 +179,10 @@ electron.vite.config.ts  Path aliases: @renderer @lib @store @hooks @components
 - [ ] Import feature (Sep 2026): test on iPhone HEVC .mov, portrait video,
       240 fps slo-mo, and a VFR screen recording; verify preview seeking works
       through `sas-media://` (Range requests) in the packaged build
-- [ ] Consider making "open raw file" in Analyze prompt to convert instead
+- [x] Opening/dropping a raw file in Analyze goes through the Import screen
+- [ ] Introductory / welcome screen on first launch (logo, maybe a quick tour
+      of Capture / Import / Analyze). Idea floated Sep 2026 — decide at
+      pre-release time.
 - [ ] Library/ClipBrowser thumbnails: switch to `sas-media://` URLs instead of
       `readFileAsBuffer` copies
 - [ ] Packaging: `build/icon.ico`, `author` in package.json, move renderer-only
