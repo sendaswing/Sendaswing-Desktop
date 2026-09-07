@@ -6,11 +6,27 @@ import { ToolPalette } from './ToolPalette'
 import { RightVideoPanel } from './RightVideoPanel'
 import { SyncControls } from '../comparison/SyncControls'
 import { useAnalysisStore } from '../../store/analysisStore'
+import { ImportView } from '../import/ImportView'
 import { cn } from '../../lib/utils/cn'
 
 export function AnalysisView() {
-  const { activeClip, flipH, setFlipH } = useAnalysisStore()
+  // Selectors, not the whole store: this view must NOT re-render on every frame.
+  const activeClip = useAnalysisStore((s) => s.activeClip)
+  const flipH = useAnalysisStore((s) => s.flipH)
+  const setFlipH = useAnalysisStore((s) => s.setFlipH)
+  const pendingImportPath = useAnalysisStore((s) => s.pendingImportPath)
+  const setPendingImportPath = useAnalysisStore((s) => s.setPendingImportPath)
   const [dualMode, setDualMode] = useState(false)
+
+  // A newly opened/dropped raw file is trimmed and converted before analysis
+  if (pendingImportPath) {
+    return (
+      <ImportView
+        initialPath={pendingImportPath}
+        onClose={() => setPendingImportPath(null)}
+      />
+    )
+  }
 
   return (
     <div className="flex flex-col h-full">

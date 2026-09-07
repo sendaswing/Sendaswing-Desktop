@@ -1,5 +1,3 @@
-import type { FrameSample } from '../../types/scrubber'
-
 // @ts-ignore — mp4box has no bundled type declarations
 import MP4Box from 'mp4box'
 
@@ -105,11 +103,15 @@ export class ChunkDemuxer {
         }
       }
 
-      const buf = fileBuffer.slice(0) as any
+      // mp4box only reads the buffer, so hand it the IPC copy directly instead
+      // of duplicating a potentially huge file in memory.
+      const buf = fileBuffer as any
       buf.fileStart = 0
       file.appendBuffer(buf)
       file.flush()
 
+      // Safety net: if mp4box never reports all samples, settle with what we
+      // have (or fail) instead of hanging forever. No-op once resolved.
       setTimeout(() => {
         if (this._samples.length > 0) {
           resolve({ samples: this._samples, fps: this._fps, duration: this._duration, codecConfig })
@@ -150,6 +152,12 @@ export class ChunkDemuxer {
   }
 }
 
+/**
+ * Serialize the codec configuration box (avcC / hvcC / av1C / vpcC) to the
+ * bytes WebCodecs expects in `VideoDecoderConfig.description`. MP4 samples are
+ * length-prefixed ("AVCC" format), and VideoDecoder refuses to decode them
+ * without this — it expects Annex B otherwise.
+ */
 function extractAvcC(file: any, trackId: number): Uint8Array | undefined {
   try {
     const trak = file.getTrackById(trackId)
@@ -157,9 +165,15 @@ function extractAvcC(file: any, trackId: number): Uint8Array | undefined {
     if (!stsd) return undefined
     const entry = stsd.entries?.[0]
     if (!entry) return undefined
-    const avcc = entry.avcC || entry.hvcC || entry.av1C
-    if (!avcc) return undefined
-    return undefined
+    const box = entry.avcC || entry.hvcC || entry.av1C || entry.vpcC
+    if (!box || typeof box.write !== 'function') return undefined
+
+    const DataStream = MP4Box.DataStream
+    if (!DataStream) return undefined
+    const stream = new DataStream(undefined, 0, DataStream.BIG_ENDIAN)
+    box.write(stream)
+    // Skip the 8-byte box header (size + type); the payload is the description.
+    return new Uint8Array(stream.buffer, 8)
   } catch {
     return undefined
   }

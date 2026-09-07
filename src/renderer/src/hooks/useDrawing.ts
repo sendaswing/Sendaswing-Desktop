@@ -1,7 +1,6 @@
 import { useState, useCallback, useRef } from 'react'
 import { useAnalysisStore } from '../store/analysisStore'
 import type { Point, Annotation } from '../types/drawing'
-import { calcAngle } from '../lib/drawing/tools'
 
 let annotationIdCounter = 0
 const nextId = () => `ann-${++annotationIdCounter}`

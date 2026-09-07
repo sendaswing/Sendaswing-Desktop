@@ -75,7 +75,7 @@ export function useViewTransform(getActiveTool: () => DrawingToolType | null) {
     dispatch({ type: 'pan', panX: panOriginRef.current.x + dx, panY: panOriginRef.current.y + dy })
   }, [])
 
-  const handlePointerUpCapture = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+  const handlePointerUpCapture = useCallback(() => {
     if (!isPanningRef.current) return
     isPanningRef.current = false
     setIsPanning(false)

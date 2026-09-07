@@ -1,7 +1,39 @@
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, shell, protocol, net } from 'electron'
 import { join } from 'path'
+import { pathToFileURL } from 'url'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerIpcHandlers } from './ipc'
+
+// sas-media://  →  streams a local video file to <video> without copying it
+// through IPC. Must be registered before app is ready. URL form:
+//   sas-media:///C:/path/to/clip.mp4   (path is URI-encoded by the preload helper)
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'sas-media', privileges: { stream: true, supportFetchAPI: true, bypassCSP: true, secure: true } }
+])
+
+function registerMediaProtocol(): void {
+  protocol.handle('sas-media', async (request) => {
+    try {
+      // sas-media:///C%3A/dir/clip.mp4  →  C:/dir/clip.mp4
+      const raw = request.url.replace(/^sas-media:\/\/\/?/, '')
+      let filePath = decodeURIComponent(raw.split('?')[0])
+      if (process.platform === 'win32' && /^\/[A-Za-z]:/.test(filePath)) filePath = filePath.slice(1)
+
+      // Forward only the Range header so <video> can seek; nothing else.
+      const range = request.headers.get('range')
+      const res = await net.fetch(pathToFileURL(filePath).toString(), {
+        headers: range ? { Range: range } : {}
+      })
+      if (!res.ok && res.status !== 206) {
+        console.error('[sas-media] fetch failed', res.status, filePath)
+      }
+      return res
+    } catch (err) {
+      console.error('[sas-media] error serving', request.url, err)
+      return new Response('Not found', { status: 404 })
+    }
+  })
+}
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -47,6 +79,7 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.sendaswing.desktop')
+  registerMediaProtocol()
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })

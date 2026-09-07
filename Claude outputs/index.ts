@@ -27,27 +27,6 @@ const electronAPI = {
     /** Absolute path of a File dropped from the OS (File.path was removed from Electron). */
     getPathForFile: (file: File): string => {
       try { return webUtils.getPathForFile(file) } catch { return '' }
-    },
-    /** URL that streams a local video into a <video> element (see sas-media protocol in main). */
-    mediaUrl: (filePath: string): string =>
-      'sas-media:///' + encodeURIComponent(filePath.replace(/\\/g, '/')).replace(/%2F/g, '/')
-  },
-  convert: {
-    probe: (filePath: string): Promise<{
-      width: number; height: number; fps: number; duration: number; codec: string; sizeBytes: number; rotation: number
-    }> => ipcRenderer.invoke('convert:probe', filePath),
-    start: (req: {
-      srcPath: string; startSec: number; endSec: number
-      resolution: '720' | '1080' | 'original'; quality: 'fast' | 'balanced' | 'best'
-      cameraAngle: string; club: string
-    }): Promise<{ ok: true; clip: any } | { ok: false; error: string }> =>
-      ipcRenderer.invoke('convert:start', req),
-    cancel: (): Promise<boolean> => ipcRenderer.invoke('convert:cancel'),
-    /** Subscribe to progress (0..1). Returns an unsubscribe function. */
-    onProgress: (cb: (p: { pct: number; fps?: number }) => void): (() => void) => {
-      const handler = (_e: unknown, p: { pct: number; fps?: number }) => cb(p)
-      ipcRenderer.on('convert:progress', handler)
-      return () => { ipcRenderer.removeListener('convert:progress', handler) }
     }
   },
   titlebar: {

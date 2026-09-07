@@ -1,12 +1,10 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react'
 import { useScrubber } from '../../hooks/useScrubber'
 import { ScrubberBar } from '../analysis/ScrubberBar'
-import { useAnalysisStore } from '../../store/analysisStore'
 import { useComparisonStore } from '../../store/comparisonStore'
-import { FolderOpen, FolderSearch } from 'lucide-react'
+import { FolderSearch } from 'lucide-react'
 import { useClipStore } from '../../store/clipStore'
 import type { Clip } from '../../types/clip'
-import { cn } from '../../lib/utils/cn'
 
 interface ComparisonPanelProps {
   side: 'left' | 'right'
@@ -16,7 +14,7 @@ export function ComparisonPanel({ side }: ComparisonPanelProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const { isLoaded, loadClip, seek } = useScrubber(canvasRef)
 
-  const { leftClip, rightClip, leftFrame, rightFrame, setLeftFrame, setRightFrame, isSynced } = useComparisonStore()
+  const { leftClip, rightClip, setLeftFrame, setRightFrame, isSynced } = useComparisonStore()
   const clip = side === 'left' ? leftClip : rightClip
   const setFrame = side === 'left' ? setLeftFrame : setRightFrame
 

@@ -26,6 +26,10 @@ interface AnalysisStore {
   flipH: boolean
   setFlipH: (val: boolean) => void
 
+  /** A raw file waiting to be trimmed/converted; Analyze shows the Import screen while set. */
+  pendingImportPath: string | null
+  setPendingImportPath: (p: string | null) => void
+
   setActiveTool: (tool: DrawingToolType | null) => void
   setActiveStyle: (style: Partial<AnnotationStyle>) => void
   addAnnotation: (annotation: Annotation) => void
@@ -60,6 +64,7 @@ export const useAnalysisStore = create<AnalysisStore>()(
     activeTool: 'line',
     activeStyle: defaultStyle,
     flipH: false,
+    pendingImportPath: null,
 
     setActiveClip: (clip) => {
       set((state) => {
@@ -102,6 +107,9 @@ export const useAnalysisStore = create<AnalysisStore>()(
 
     setFlipH: (val) => {
       set((state) => { state.flipH = val })
+    },
+    setPendingImportPath: (p) => {
+      set((state) => { state.pendingImportPath = p })
     },
 
     setActiveTool: (tool) => {

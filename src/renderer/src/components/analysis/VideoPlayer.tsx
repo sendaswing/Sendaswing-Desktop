@@ -1,6 +1,6 @@
 import React, { useCallback, useRef, useEffect, useState } from 'react'
 import { Maximize2 } from 'lucide-react'
-import { useScrubber } from '../../hooks/useScrubber'
+import { useScrubber, formatMB } from '../../hooks/useScrubber'
 import { useVideoElement } from '../../hooks/useVideoElement'
 import { DrawingCanvas } from './DrawingCanvas'
 import { ScrubberBar } from './ScrubberBar'
@@ -18,12 +18,17 @@ interface VideoPlayerProps {
 
 export function VideoPlayer({ clipPath, clipDuration }: VideoPlayerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const { isLoaded, loadFailed, preloadProgress, loadClip, seek, play, pause, stepForward, stepBackward } = useScrubber(canvasRef)
+  const { isLoaded, loadFailed, sizeNotice, preloadProgress, loadClip, seek, play, pause, setScrubbing, stepForward, stepBackward } = useScrubber(canvasRef)
 
   // HTML5 fallback for unsupported codecs
   const { attachVideo, isLoaded: html5Loaded, loadFile, seekToFrame, play: html5Play, pause: html5Pause, stepForward: html5StepForward, stepBackward: html5StepBackward } = useVideoElement()
 
-  const { playbackSpeed, currentFrame, totalFrames, fps, isPlaying, setActiveClip, flipH } = useAnalysisStore()
+  // Only subscribe to what changes rarely; per-frame values are read on demand
+  // via getState() so the whole player tree isn't re-rendered 60x/sec.
+  const setActiveClip = useAnalysisStore((s) => s.setActiveClip)
+  const setPendingImportPath = useAnalysisStore((s) => s.setPendingImportPath)
+  const flipH = useAnalysisStore((s) => s.flipH)
+  const fps = useAnalysisStore((s) => s.fps)
   const { addClip } = useClipStore()
   const [isDragOver, setIsDragOver] = useState(false)
 
@@ -54,6 +59,15 @@ export function VideoPlayer({ clipPath, clipDuration }: VideoPlayerProps) {
     if (loadFailed) html5Pause()
     else pause()
   }, [loadFailed, html5Pause, pause])
+
+  const handleScrubStart = useCallback(() => {
+    handlePause()
+    if (!loadFailed) setScrubbing(true)
+  }, [handlePause, loadFailed, setScrubbing])
+
+  const handleScrubEnd = useCallback(() => {
+    if (!loadFailed) setScrubbing(false)
+  }, [loadFailed, setScrubbing])
 
   const handleStepForward = useCallback(() => {
     if (loadFailed) html5StepForward()
@@ -90,32 +104,30 @@ export function VideoPlayer({ clipPath, clipDuration }: VideoPlayerProps) {
       }
     }
 
-    // Native OS file drop
+    // Native OS file drop: trim & convert first so it scrubs properly
     const file = e.dataTransfer.files[0]
-    const filePath = file && (file as any).path
+    const filePath = file && (window as any).electronAPI.fs.getPathForFile(file)
     if (!filePath) return
-    const clip: Clip = {
-      id: `drop-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      name: file.name,
-      filePath,
-      duration: 0, fps: 30, frameCount: 0, thumbnailPath: null,
-      recordedAt: new Date().toISOString(),
-      cameraLabel: 'Imported', cameraAngle: '', club: '', tags: [], annotations: []
-    }
-    addClip(clip)
-    setActiveClip(clip)
-  }, [addClip, setActiveClip])
+    setPendingImportPath(filePath)
+  }, [addClip, setActiveClip, setPendingImportPath])
 
   useKeyboardShortcuts({
     onTogglePlay: () => {
+      const { isPlaying, playbackSpeed } = useAnalysisStore.getState()
       if (isPlaying) handlePause()
       else handlePlay(playbackSpeed)
     },
     onStepForward: handleStepForward,
     onStepBackward: handleStepBackward,
     onPause: handlePause,
-    onSeekForward: (n) => handleSeek(Math.min(currentFrame + n, totalFrames - 1)),
-    onSeekBackward: (n) => handleSeek(Math.max(currentFrame - n, 0))
+    onSeekForward: (n) => {
+      const { currentFrame, totalFrames } = useAnalysisStore.getState()
+      handleSeek(Math.min(currentFrame + n, totalFrames - 1))
+    },
+    onSeekBackward: (n) => {
+      const { currentFrame } = useAnalysisStore.getState()
+      handleSeek(Math.max(currentFrame - n, 0))
+    }
   })
 
   const effectivelyLoaded = loadFailed ? html5Loaded : isLoaded
@@ -157,6 +169,32 @@ export function VideoPlayer({ clipPath, clipDuration }: VideoPlayerProps) {
           </div>
         </div>
 
+        {/* Opaque loading screen while the clip is demuxed and the first window is decoded */}
+        {clipPath && !isLoaded && !loadFailed && sizeNotice?.kind !== 'blocked' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black text-center select-none pointer-events-none z-10">
+            <span className="text-white/80 text-sm">Loading clip…</span>
+            <div className="w-40 h-1 rounded bg-white/10 overflow-hidden">
+              <div className="h-full bg-white/60" style={{ width: `${Math.round(preloadProgress * 100)}%` }} />
+            </div>
+            <span className="text-white/40 text-xs">{Math.round(preloadProgress * 100)}%</span>
+          </div>
+        )}
+
+        {/* File size notice: hard block or soft warning */}
+        {sizeNotice?.kind === 'blocked' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/70 text-center text-sm select-none pointer-events-none z-10">
+            <span className="text-white/90 font-medium">File too large to open</span>
+            <span className="text-white/50 text-xs">
+              This file is over the 1 GB limit. Trim it in another program first, then open it here.
+            </span>
+          </div>
+        )}
+        {sizeNotice?.kind === 'warn' && (
+          <div className="absolute top-2 right-2 px-2 py-1 rounded bg-black/60 text-white/60 text-xs select-none pointer-events-none z-10">
+            Large file ({formatMB(sizeNotice.bytes)}) — loading may be slower
+          </div>
+        )}
+
         {/* Reset zoom button — outside transform so it stays pinned to corner */}
         {!isAtDefault && (
           <button
@@ -180,7 +218,7 @@ export function VideoPlayer({ clipPath, clipDuration }: VideoPlayerProps) {
         )}
       </div>
 
-      <ScrubberBar onSeek={handleSeek} onScrubStart={handlePause} preloadProgress={loadFailed ? 1 : preloadProgress} />
+      <ScrubberBar onSeek={handleSeek} onScrubStart={handleScrubStart} onScrubEnd={handleScrubEnd} preloadProgress={loadFailed ? 1 : preloadProgress} />
       <PlaybackControls
         onPlay={handlePlay}
         onPause={handlePause}

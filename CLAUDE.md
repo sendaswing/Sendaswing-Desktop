@@ -16,6 +16,12 @@ Core workflows the app supports:
 
 - **Capture** — live webcam preview (multi-camera grid), record swings to disk,
   tagged by camera angle (FO = face-on, DL = down-the-line) and club.
+- **Import** — bring in any client video (phone, camera, broadcast), trim it
+  with In/Out points, and convert it to the "studio format": H.264 MP4 where
+  EVERY frame is a keyframe (all-intra), constant frame rate at the source's
+  native rate, capped at 720p/1080p/original, no audio. This is what makes
+  scrubbing instant — raw phone/broadcast files have keyframes seconds apart
+  and can never scrub cleanly. Runs bundled ffmpeg/ffprobe in the main process.
 - **Analyze** — frame-accurate scrubbing with a WebCodecs-based decoder,
   play/pause/speed, horizontal flip, and drawing tools (lines, etc.) over the
   video on a canvas overlay.
@@ -36,6 +42,10 @@ Core workflows the app supports:
 - Packaging: electron-builder 26 (`electron-builder.yml`), NSIS installer on
   Windows, output to `dist/`
 - Logging: electron-log
+- Video conversion: `ffmpeg-static` + `ffprobe-static` (spawned from
+  `src/main/ipc/convert.ts`; unpacked from asar via `asarUnpack` in
+  `electron-builder.yml`). Local files stream into `<video>` through the custom
+  `sas-media://` protocol registered in `src/main/index.ts` (no IPC copy).
 
 ## Environment setup (both computers)
 
@@ -70,11 +80,11 @@ the UI, run `npm run dev` and confirm the window opens without console errors.
 src/
   main/               Electron main process (Node side)
     index.ts          Window creation (frameless, custom title bar), permissions
-    ipc/              One file per IPC domain: recording, filesystem, settings, titlebar
+    ipc/              One file per IPC domain: recording, filesystem, settings, titlebar, convert
   preload/index.ts    contextBridge → exposes window.electronAPI to the renderer
   renderer/           React app (browser side, no Node access)
     src/
-      components/     capture/ analysis/ comparison/ library/ layout/ settings/
+      components/     capture/ import/ analysis/ comparison/ library/ layout/ settings/
       hooks/          useRecorder, useScrubber, useDrawing, useCameras, useVideoElement…
       lib/
         scrubber/     ScrubberEngine, FrameDecoder, FrameCache, ChunkDemuxer, VideoFrameExtractor
@@ -133,4 +143,53 @@ electron.vite.config.ts  Path aliases: @renderer @lib @store @hooks @components
 
 (Add items here as decisions are made so future chats don't re-propose them.)
 
-- 
+### Decisions (Sep 2026)
+
+- **File size policy:** hard cap of 1 GB per video; anything over ~250 MB is
+  discouraged. If a file is too big, Brendan trims it in a separate program
+  before opening it in the app. The app should warn/refuse on oversized files
+  rather than try to handle them.
+- **Frame cache:** cap by memory budget (~1.5 GB), not by frame count, and keep
+  a rolling window around the playhead instead of preloading whole clips.
+  Large/high-quality clips (e.g. the "tour" folder) were stalling and lagging
+  on the first frame — this is the primary fix.
+- **File loading:** replace synchronous whole-file reads over IPC with async
+  reads and remove the extra buffer copies. (Done.)
+- **Scrubbing is the #1 priority — over everything else.** The engine
+  (`ScrubberEngine`) keeps a memory-budgeted frame cache with a rolling preload
+  window, decodes whole keyframe groups on seek, and pauses preload while the
+  user drags. But for raw phone/broadcast files that is fundamentally limited
+  by keyframe spacing. The real fix is the **Import → convert to all-intra**
+  workflow; converted clips scrub instantly anywhere. Don't try to solve
+  scrubbing of raw files with more cache tuning.
+- **Health check finding (Sep 2026):** `extractAvcC` was stubbed, so WebCodecs
+  decoding had ALWAYS failed and every MP4 silently fell back to the slow
+  HTML5 extractor path. Fixed — MP4s now decode through WebCodecs.
+- **App icon:** Brendan is supplying one. Goes in `build/icon.ico` (256×256).
+- **Health check (Sep 2026) order of work:** frame cache → drag-drop + decoder
+  fixes → async file loading → packaging → pre-v1 cleanup list below.
+
+### Pre-v1 release checklist
+
+- [x] Frame cache memory budget + rolling window (see above)
+- [x] Oversized-file guard (1 GB hard cap, warn above 250 MB)
+- [x] Native Explorer drag-and-drop uses `webUtils.getPathForFile` in preload
+- [x] `extractAvcC` in `ChunkDemuxer.ts` — implemented (serializes avcC/hvcC box)
+- [x] Async file reads (`fs.promises.readFile`) in `fs:read-file-as-buffer`
+- [ ] Import feature (Sep 2026): test on iPhone HEVC .mov, portrait video,
+      240 fps slo-mo, and a VFR screen recording; verify preview seeking works
+      through `sas-media://` (Range requests) in the packaged build
+- [ ] Consider making "open raw file" in Analyze prompt to convert instead
+- [ ] Library/ClipBrowser thumbnails: switch to `sas-media://` URLs instead of
+      `readFileAsBuffer` copies
+- [ ] Packaging: `build/icon.ico`, `author` in package.json, move renderer-only
+      deps (react, radix, lucide, mp4box, zustand, immer, tailwind-merge, clsx)
+      to devDependencies so the installer doesn't ship them twice
+- [ ] `FlipProxy` redraws on rAF (60 fps) — flipped recordings lose frames from
+      120 fps cameras; drive it from the track's frame rate instead
+- [x] `VideoFrameExtractor` allocates a new OffscreenCanvas per frame — reuse one
+- [ ] `useKeyboardShortcuts` re-registers its listener on every render
+- [ ] iPhone HEVC `.mov` files likely fail to decode on Windows without the HEVC
+      extension — show a clear message instead of hanging
+- [ ] Remove the leftover 5 s `setTimeout` in `ChunkDemuxer.load` that fires
+      after resolve

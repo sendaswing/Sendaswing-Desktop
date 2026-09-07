@@ -26,8 +26,11 @@ function toLibClip(f: { name: string; filePath: string }): Clip {
 }
 
 export function ClipBrowser() {
-  const { clips, addClip } = useClipStore()
-  const { activeClip, setActiveClip } = useAnalysisStore()
+  const clips = useClipStore((s) => s.clips)
+  const addClip = useClipStore((s) => s.addClip)
+  const activeClip = useAnalysisStore((s) => s.activeClip)
+  const setActiveClip = useAnalysisStore((s) => s.setActiveClip)
+  const setPendingImportPath = useAnalysisStore((s) => s.setPendingImportPath)
   const { libraryDir } = useSettingsStore()
 
   const [tab, setTab] = useState<Tab>('clips')
@@ -57,19 +60,12 @@ export function ClipBrowser() {
     setQuery('')
   }
 
+  // Opening a new file goes through the Import screen (trim + convert to the
+  // studio format) so it scrubs properly; the converted clip is added on finish.
   const openFile = async () => {
     const paths: string[] = await (window as any).electronAPI?.fs.openVideo(libraryDir || undefined)
     if (!paths?.length) return
-    for (const filePath of paths) {
-      const name = filePath.split(/[\\/]/).pop() ?? filePath
-      const clip: Clip = {
-        id: `clip-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        name, filePath, duration: 0, fps: 30, frameCount: 0, thumbnailPath: null,
-        recordedAt: new Date().toISOString(),
-        cameraLabel: 'Imported', cameraAngle: '', club: '', tags: [], annotations: []
-      }
-      addClip(clip)
-    }
+    setPendingImportPath(paths[0])
   }
 
   const q = query.toLowerCase()

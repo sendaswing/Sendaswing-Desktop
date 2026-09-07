@@ -7,7 +7,10 @@ export function useVideoElement() {
   const fallbackDurationRef = useRef<number>(0)
   const [isLoaded, setIsLoaded] = useState(false)
 
-  const { setCurrentFrame, setTotalFrames, setFps, setIsPlaying } = useAnalysisStore()
+  const setCurrentFrame = useAnalysisStore((s) => s.setCurrentFrame)
+  const setTotalFrames = useAnalysisStore((s) => s.setTotalFrames)
+  const setFps = useAnalysisStore((s) => s.setFps)
+  const setIsPlaying = useAnalysisStore((s) => s.setIsPlaying)
 
   const loadFile = useCallback(async (filePath: string, fallbackDuration?: number) => {
     setIsLoaded(false)

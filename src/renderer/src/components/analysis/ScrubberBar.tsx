@@ -4,12 +4,13 @@ import { useAnalysisStore } from '../../store/analysisStore'
 interface ScrubberBarProps {
   onSeek: (frame: number) => void
   onScrubStart?: () => void
+  onScrubEnd?: () => void
   currentFrame?: number
   totalFrames?: number
   preloadProgress?: number
 }
 
-export function ScrubberBar({ onSeek, onScrubStart, currentFrame: currentFrameProp, totalFrames: totalFramesProp, preloadProgress = 1 }: ScrubberBarProps) {
+export function ScrubberBar({ onSeek, onScrubStart, onScrubEnd, currentFrame: currentFrameProp, totalFrames: totalFramesProp, preloadProgress = 1 }: ScrubberBarProps) {
   const store = useAnalysisStore()
   const currentFrame = currentFrameProp ?? store.currentFrame
   const totalFrames = totalFramesProp ?? store.totalFrames
@@ -55,8 +56,10 @@ export function ScrubberBar({ onSeek, onScrubStart, currentFrame: currentFramePr
   }, [getFrameFromPointer, scheduleSeek])
 
   const onPointerUp = useCallback(() => {
+    if (!isDragging.current) return
     isDragging.current = false
-  }, [])
+    onScrubEnd?.()
+  }, [onScrubEnd])
 
   const progress = safeTotal > 1 ? Math.min(1, currentFrame / (safeTotal - 1)) : 0
 
@@ -68,6 +71,7 @@ export function ScrubberBar({ onSeek, onScrubStart, currentFrame: currentFramePr
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
       >
         <div className="absolute inset-x-0 h-1.5 bg-white/10 rounded-full overflow-hidden">
           {/* Preload fill — subtle underlay showing background decode progress */}

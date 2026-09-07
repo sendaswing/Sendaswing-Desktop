@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react'
 import { useAnalysisStore } from '../../store/analysisStore'
 import { useDrawing } from '../../hooks/useDrawing'
-import type { Annotation, AnnotationLayer, Point } from '../../types/drawing'
+import type { Annotation, AnnotationLayer } from '../../types/drawing'
 import { calcAngle } from '../../lib/drawing/tools'
 
 function pct(n: number) {

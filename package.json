@@ -19,6 +19,8 @@
     "@radix-ui/react-tooltip": "^1.1.4",
     "clsx": "^2.1.1",
     "electron-log": "^5.2.4",
+    "ffmpeg-static": "^5.2.0",
+    "ffprobe-static": "^3.1.0",
     "immer": "^10.1.1",
     "lucide-react": "^0.468.0",
     "mp4box": "^0.5.3",

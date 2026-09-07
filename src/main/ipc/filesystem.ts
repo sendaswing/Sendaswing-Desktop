@@ -1,6 +1,7 @@
 import { ipcMain, app, dialog, nativeImage } from 'electron'
-import { readFileSync, mkdirSync, readdirSync } from 'fs'
-import { join, extname, basename } from 'path'
+import { mkdirSync, readdirSync } from 'fs'
+import { readFile, stat } from 'fs/promises'
+import { join, extname } from 'path'
 
 const VIDEO_EXTS = new Set(['.mp4', '.mov', '.webm', '.m4v', '.avi'])
 
@@ -20,8 +21,25 @@ export function registerFilesystemHandlers(): void {
     return dir
   })
 
-  ipcMain.handle('fs:read-file-as-buffer', (_event, filePath: string) => {
-    const buf = readFileSync(filePath)
+  // Hard limit: files above this are refused outright (see CLAUDE.md file size policy).
+  const MAX_FILE_BYTES = 1024 * 1024 * 1024 // 1 GB
+
+  ipcMain.handle('fs:file-size', async (_event, filePath: string) => {
+    try {
+      const info = await stat(filePath)
+      return info.size
+    } catch {
+      return -1
+    }
+  })
+
+  ipcMain.handle('fs:read-file-as-buffer', async (_event, filePath: string) => {
+    const info = await stat(filePath)
+    if (info.size > MAX_FILE_BYTES) {
+      throw new Error(`file-too-large:${info.size}`)
+    }
+    // Async read so a large file never blocks the main process (and the UI).
+    const buf = await readFile(filePath)
     return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
   })
 

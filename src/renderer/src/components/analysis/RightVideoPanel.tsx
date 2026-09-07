@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react'
-import { useScrubber } from '../../hooks/useScrubber'
+import { useScrubber, formatMB } from '../../hooks/useScrubber'
 import { useVideoElement } from '../../hooks/useVideoElement'
 import { ScrubberBar } from './ScrubberBar'
 import { PlaybackControls } from './PlaybackControls'
@@ -39,7 +39,7 @@ export function RightVideoPanel() {
   const [isDragOver, setIsDragOver] = useState(false)
   const [flipH, setFlipH] = useState(false)
 
-  const { isLoaded, loadFailed, preloadProgress, loadClip, seek, play, pause, stepForward, stepBackward } = useScrubber(canvasRef, {
+  const { isLoaded, loadFailed, sizeNotice, preloadProgress, loadClip, seek, play, pause, setScrubbing, stepForward, stepBackward } = useScrubber(canvasRef, {
     onFrameChange: setCurrentFrame,
     onPlayStateChange: setIsPlaying,
     onTotalFramesChange: setTotalFrames,
@@ -49,7 +49,7 @@ export function RightVideoPanel() {
   const { attachVideo, isLoaded: html5Loaded, loadFile, seekToFrame, play: html5Play, pause: html5Pause, stepForward: html5StepForward, stepBackward: html5StepBackward } = useVideoElement()
 
   const { rightClip, setRightClip, isSynced, leftFrame } = useComparisonStore()
-  const { activeClip } = useAnalysisStore()
+  const activeClip = useAnalysisStore((s) => s.activeClip)
   const { addClip } = useClipStore()
 
   const { containerRef, viewportStyle, handlePointerDownCapture, handlePointerMoveCapture, handlePointerUpCapture, reset, isAtDefault, isPanning } = useViewTransform(
@@ -85,6 +85,15 @@ export function RightVideoPanel() {
     else pause()
   }, [loadFailed, html5Pause, pause])
 
+  const handleScrubStart = useCallback(() => {
+    handlePause()
+    if (!loadFailed) setScrubbing(true)
+  }, [handlePause, loadFailed, setScrubbing])
+
+  const handleScrubEnd = useCallback(() => {
+    if (!loadFailed) setScrubbing(false)
+  }, [loadFailed, setScrubbing])
+
   const handleStepForward = useCallback(() => {
     if (loadFailed) html5StepForward()
     else stepForward()
@@ -112,7 +121,7 @@ export function RightVideoPanel() {
 
     // Native OS file drop
     const file = e.dataTransfer.files[0]
-    const filePath = file && (file as any).path
+    const filePath = file && (window as any).electronAPI.fs.getPathForFile(file)
     if (!filePath) return
     const clip = makeDropClip(filePath, file.name, 'drop-r')
     addClip(clip)
@@ -179,6 +188,32 @@ export function RightVideoPanel() {
           </div>
         </div>
 
+        {/* Opaque loading screen while the clip is demuxed and the first window is decoded */}
+        {rightClip && !isLoaded && !loadFailed && sizeNotice?.kind !== 'blocked' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black text-center select-none pointer-events-none z-10">
+            <span className="text-white/80 text-sm">Loading clip…</span>
+            <div className="w-40 h-1 rounded bg-white/10 overflow-hidden">
+              <div className="h-full bg-white/60" style={{ width: `${Math.round(preloadProgress * 100)}%` }} />
+            </div>
+            <span className="text-white/40 text-xs">{Math.round(preloadProgress * 100)}%</span>
+          </div>
+        )}
+
+        {/* File size notice: hard block or soft warning */}
+        {sizeNotice?.kind === 'blocked' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/70 text-center text-sm select-none pointer-events-none z-10">
+            <span className="text-white/90 font-medium">File too large to open</span>
+            <span className="text-white/50 text-xs">
+              This file is over the 1 GB limit. Trim it in another program first, then open it here.
+            </span>
+          </div>
+        )}
+        {sizeNotice?.kind === 'warn' && (
+          <div className="absolute top-2 right-2 px-2 py-1 rounded bg-black/60 text-white/60 text-xs select-none pointer-events-none z-10">
+            Large file ({formatMB(sizeNotice.bytes)}) — loading may be slower
+          </div>
+        )}
+
         {/* Reset zoom button — pinned outside transform */}
         {!isAtDefault && (
           <button
@@ -230,7 +265,8 @@ export function RightVideoPanel() {
 
       <ScrubberBar
         onSeek={handleSeek}
-        onScrubStart={handlePause}
+        onScrubStart={handleScrubStart}
+        onScrubEnd={handleScrubEnd}
         currentFrame={currentFrame}
         totalFrames={totalFrames}
         preloadProgress={loadFailed ? 1 : preloadProgress}

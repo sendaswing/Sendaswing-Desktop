@@ -1,10 +1,10 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useCallback } from 'react'
 import { useCameraStore } from '../store/cameraStore'
 
 const streams = new Map<number, MediaStream>()
 
 export function useCameras() {
-  const { slots, refreshDevices, setStream, setSlotStatus } = useCameraStore()
+  const { refreshDevices, setStream, setSlotStatus } = useCameraStore()
 
   useEffect(() => {
     refreshDevices()

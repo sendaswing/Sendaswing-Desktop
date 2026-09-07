@@ -107,7 +107,7 @@ function VideoThumbnail({
 
 export function LibraryView({ onNavigate }: LibraryViewProps) {
   const { libraryDir, setLibraryDir } = useSettingsStore()
-  const { setActiveClip } = useAnalysisStore()
+  const setActiveClip = useAnalysisStore((s) => s.setActiveClip)
   const [files, setFiles] = useState<LibraryFile[]>([])
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)

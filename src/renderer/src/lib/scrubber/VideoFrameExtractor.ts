@@ -31,8 +31,10 @@ export class VideoFrameExtractor {
       if (duration === 0) throw new Error('no-duration')
 
       const fps = 30
-      const frameCount = Math.min(Math.round(duration * fps), 1200)
-      cache.resize(frameCount)
+      // The cache is memory-budgeted, so only extract as many frames as it can
+      // actually hold at this resolution (WebM is a rare fallback path).
+      const capacity = cache.capacityFor(video.videoWidth || 1280, video.videoHeight || 720)
+      const frameCount = Math.min(Math.round(duration * fps), 1200, capacity)
 
       if ('requestVideoFrameCallback' in (video as any)) {
         // Fast path: play at 2× and capture frames via requestVideoFrameCallback.
@@ -43,14 +45,18 @@ export class VideoFrameExtractor {
         await new Promise<void>((res) => { video.onseeked = () => res() })
         video.playbackRate = 2
 
+        // One reusable OffscreenCanvas: transferToImageBitmap() hands off the
+        // backing store each frame, so drawing into it again is safe and avoids
+        // allocating a fresh 1080p canvas per frame.
+        const oc = new OffscreenCanvas(video.videoWidth || 1280, video.videoHeight || 720)
+        const octx = oc.getContext('2d')!
         await new Promise<void>((res) => {
           const onFrame = (_now: number, meta: any) => {
             const frameIdx = Math.min(Math.round((meta.mediaTime as number) * fps), frameCount - 1)
             try {
               // OffscreenCanvas.drawImage bypasses the GPU capture buffer pool entirely,
               // avoiding "Failed to reserve output capture buffer" errors on Windows.
-              const oc = new OffscreenCanvas(video.videoWidth || 1280, video.videoHeight || 720)
-              oc.getContext('2d')!.drawImage(video, 0, 0)
+              octx.drawImage(video, 0, 0)
               cache.put(frameIdx, oc.transferToImageBitmap())
             } catch { /* skip frame if capture fails */ }
             onProgress?.(frameIdx / Math.max(frameCount - 1, 1))

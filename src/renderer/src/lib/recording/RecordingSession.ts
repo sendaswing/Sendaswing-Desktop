@@ -3,15 +3,13 @@ import type { Clip } from '../../types/clip'
 export class RecordingSession {
   private recorder: MediaRecorder | null = null
   private sessionId: string | null = null
-  private slotIndex: number
   private cameraLabel: string
   private cameraAngle: string
   private club: string
 
   private swingNumber: number
 
-  constructor(slotIndex: number, cameraLabel: string, cameraAngle: string, club: string, swingNumber: number) {
-    this.slotIndex = slotIndex
+  constructor(_slotIndex: number, cameraLabel: string, cameraAngle: string, club: string, swingNumber: number) {
     this.cameraLabel = cameraLabel
     this.cameraAngle = cameraAngle
     this.club = club
