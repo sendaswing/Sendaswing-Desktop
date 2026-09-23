@@ -4,6 +4,7 @@ import { registerFilesystemHandlers } from './filesystem'
 import { registerTitlebarHandlers } from './titlebar'
 import { registerSettingsHandlers } from './settings'
 import { registerConvertHandlers } from './convert'
+import { registerBufferedCaptureHandlers } from './bufferedCapture'
 
 export function registerIpcHandlers(win: BrowserWindow): void {
   registerRecordingHandlers()
@@ -11,4 +12,5 @@ export function registerIpcHandlers(win: BrowserWindow): void {
   registerTitlebarHandlers(win)
   registerSettingsHandlers()
   registerConvertHandlers(win)
+  registerBufferedCaptureHandlers()
 }

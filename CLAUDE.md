@@ -15,7 +15,11 @@ give exact commands to run, and never assume he will hand-edit code.
 Core workflows the app supports:
 
 - **Capture** — live webcam preview (multi-camera grid), record swings to disk,
-  tagged by camera angle (FO = face-on, DL = down-the-line) and club.
+  tagged by camera angle (FO = face-on, DL = down-the-line) and club. Two modes:
+  **Standard** (countdown + Record/Stop) and **Buffered** (cameras keep a rolling
+  pre-roll in memory; a strike heard on a separate trigger mic — or the Save
+  Swing hotkey — saves pre-roll + post-roll, converts it to studio format, and
+  jumps to Analyze playing it in slow motion).
 - **Import** — bring in any client video (phone, camera, broadcast), trim it
   with In/Out points, and convert it to the "studio format": H.264 MP4 where
   EVERY frame is a keyframe (all-intra), constant frame rate at the source's
@@ -28,7 +32,11 @@ Core workflows the app supports:
 - **Compare** — two clips side by side with sync controls.
 - **Library** — browse a chosen folder of existing swing videos with thumbnails.
 - **Settings** — recordings folder and library folder, stored in
-  `settings.json` under Electron's userData path.
+  `settings.json` under Electron's userData path. Capture/replay preferences
+  and hotkeys live in the renderer's persisted `settingsStore` (localStorage).
+- **Hotkeys** (rebindable in Settings): **Tab** toggles Live (Capture) ⇄
+  Replay (Analyze); **S** on the Capture screen saves a buffered swing (or
+  starts/stops a Standard recording). Handled in `hooks/useGlobalHotkeys.ts`.
 
 ## Tech stack
 
@@ -80,17 +88,20 @@ the UI, run `npm run dev` and confirm the window opens without console errors.
 src/
   main/               Electron main process (Node side)
     index.ts          Window creation (frameless, custom title bar), permissions
-    ipc/              One file per IPC domain: recording, filesystem, settings, titlebar, convert
+    ipc/              One file per IPC domain: recording, filesystem, settings, titlebar, convert, bufferedCapture
   preload/index.ts    contextBridge → exposes window.electronAPI to the renderer
   renderer/           React app (browser side, no Node access)
     src/
       components/     capture/ import/ analysis/ comparison/ library/ layout/ settings/
-      hooks/          useRecorder, useScrubber, useDrawing, useCameras, useVideoElement…
+      hooks/          useRecorder, useScrubber, useDrawing, useCameras, useVideoElement,
+                      useBufferedCapture, useGlobalHotkeys…
       lib/
         scrubber/     ScrubberEngine, FrameDecoder, FrameCache, ChunkDemuxer, VideoFrameExtractor
-        recording/    RecordingSession, FlipProxy
+        recording/    RecordingSession, FlipProxy, BufferedRecorder, SoundTrigger,
+                      BufferedCaptureController (singleton)
         drawing/      tools, serializer
-      store/          Zustand stores (analysis, camera, clip, comparison, recording, settings)
+      store/          Zustand stores (analysis, camera, clip, comparison, recording, settings,
+                      ui = current route + toast)
       types/          clip, camera, drawing, scrubber
 electron-builder.yml  Installer config (appId com.sendaswing.desktop)
 electron.vite.config.ts  Path aliases: @renderer @lib @store @hooks @components
@@ -107,6 +118,19 @@ electron.vite.config.ts  Path aliases: @renderer @lib @store @hooks @components
   `recording:chunk` → `recording:finalize`) into a write stream. Files are
   named `MM.DD.YYYY.<Angle>.<N>.<mp4|webm>` and the swing number N auto-
   increments per day (`recording:next-swing-number`).
+- **Buffered capture** (`lib/recording/BufferedRecorder.ts`): MediaRecorder
+  can't drop old data, so each camera runs overlapping recorders started every
+  (pre-roll + 0.5 s) and discards ones older than ~1.5 windows — the oldest
+  live one always covers the pre-roll. On a trigger the best segment is
+  claimed, kept through the post-roll, and sent to `capture:save-buffered`,
+  which writes a temp file and has ffmpeg cut [trigger − pre, trigger + post]
+  straight to the all-intra studio format (`-preset superfast -crf 19`).
+  Buffers only run while the Capture screen is showing in Buffered mode
+  (`useBufferedCapture`), so Analyze gets the CPU. Cost: 2 encoders per camera.
+  The trigger mic (`SoundTrigger`) uses a Web Audio analyser with echo
+  cancellation / noise suppression / AGC off, polled every 10 ms.
+- **Navigation** goes through `useUiStore().setRoute` (not local state) so
+  capture and hotkeys can switch screens.
 - **Scrubbing** is frame-based, not time-based: `ScrubberEngine` demuxes the
   whole file, decodes on demand into a `FrameCache` (180 frames), and draws to a
   canvas. WebM files without a usable decoder fall back to
@@ -166,6 +190,9 @@ electron.vite.config.ts  Path aliases: @renderer @lib @store @hooks @components
   decoding had ALWAYS failed and every MP4 silently fell back to the slow
   HTML5 extractor path. Fixed — MP4s now decode through WebCodecs.
 - **App icon:** Brendan is supplying one. Goes in `build/icon.ico` (256×256).
+- **Buffered capture + hotkeys (Sep 2026):** built as above. Defaults:
+  3 s before / 2 s after the strike, trigger threshold −15 dBFS, replay speed
+  0.25×, auto-replay on. Clips from every armed camera share one swing number.
 - **Health check (Sep 2026) order of work:** frame cache → drag-drop + decoder
   fixes → async file loading → packaging → pre-v1 cleanup list below.
 
@@ -194,5 +221,9 @@ electron.vite.config.ts  Path aliases: @renderer @lib @store @hooks @components
 - [ ] `useKeyboardShortcuts` re-registers its listener on every render
 - [ ] iPhone HEVC `.mov` files likely fail to decode on Windows without the HEVC
       extension — show a clear message instead of hanging
+- [ ] Buffered capture: real-world test with the range cameras + trigger mic —
+      tune threshold, confirm pre-roll timing lines up (impact lands ~pre-roll
+      seconds in), check CPU with 2 cameras at 120 fps (2 encoders each), and
+      time the save→replay delay
 - [ ] Remove the leftover 5 s `setTimeout` in `ChunkDemuxer.load` that fires
       after resolve

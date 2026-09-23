@@ -50,6 +50,14 @@ const electronAPI = {
       return () => { ipcRenderer.removeListener('convert:progress', handler) }
     }
   },
+  capture: {
+    /** Trim a buffered segment around the trigger and save it in studio format. */
+    saveBuffered: (req: {
+      data: Uint8Array; ext: 'mp4' | 'webm'; startSec: number; durationSec: number; fps: number
+      swingNumber: number; cameraAngle: string; cameraLabel: string; club: string
+    }): Promise<{ ok: true; clip: any } | { ok: false; error: string }> =>
+      ipcRenderer.invoke('capture:save-buffered', req)
+  },
   titlebar: {
     minimize: () => ipcRenderer.send('titlebar:minimize'),
     maximize: () => ipcRenderer.send('titlebar:maximize'),

@@ -16,6 +16,8 @@ export function CameraCell({ slotIndex }: CameraCellProps) {
   const recState = useRecordingStore((s) => s.slotRecordings[slotIndex])
   const countdown = useRecordingStore((s) => s.countdown)
   const isRecordingAll = useRecordingStore((s) => s.isRecordingAll)
+  const bufferStatus = useRecordingStore((s) => s.bufferStatus)
+  const bufferedSec = useRecordingStore((s) => s.bufferedSec)
   const videoRef = useRef<HTMLVideoElement>(null)
   const [showSettings, setShowSettings] = useState(false)
 
@@ -60,6 +62,24 @@ export function CameraCell({ slotIndex }: CameraCellProps) {
             <Circle size={6} className="fill-white text-white animate-pulse" />
             <span className="text-white text-xs font-mono">{formatDuration(recState.elapsed)}</span>
           </div>
+        )}
+
+        {/* Buffered capture status */}
+        {slot.status === 'streaming' && slot.cameraAngle && bufferStatus !== 'off' && (
+          bufferStatus === 'capturing' ? (
+            <>
+              <div className="absolute inset-0 ring-4 ring-inset ring-red-500/80 pointer-events-none" />
+              <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-red-600/90 rounded px-2 py-0.5">
+                <Circle size={6} className="fill-white text-white animate-pulse" />
+                <span className="text-white text-xs font-semibold">SAVING SWING</span>
+              </div>
+            </>
+          ) : (
+            <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-black/60 rounded px-2 py-0.5">
+              <Circle size={6} className="fill-accent-400 text-accent-400" />
+              <span className="text-white/80 text-xs font-mono">LIVE · {bufferedSec.toFixed(1)}s</span>
+            </div>
+          )
         )}
 
         {/* Countdown overlay */}

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { ScrubberEngine } from '../lib/scrubber/ScrubberEngine'
 import { useAnalysisStore } from '../store/analysisStore'
+import { useSettingsStore } from '../store/settingsStore'
 
 /** Files above this get a warning; above MAX_BYTES the main process refuses them. */
 export const WARN_FILE_BYTES = 250 * 1024 * 1024
@@ -20,6 +21,8 @@ interface UseScrubberOptions {
   onPlayStateChange?: (playing: boolean) => void
   onTotalFramesChange?: (n: number) => void
   onFpsChange?: (fps: number) => void
+  /** Told the speed a freshly loaded clip auto-plays at (so the speed buttons match). */
+  onAutoPlaySpeed?: (speed: number) => void
 }
 
 export function useScrubber(
@@ -39,11 +42,13 @@ export function useScrubber(
   const setIsPlaying = useAnalysisStore((s) => s.setIsPlaying)
   const setTotalFrames = useAnalysisStore((s) => s.setTotalFrames)
   const setFps = useAnalysisStore((s) => s.setFps)
+  const setPlaybackSpeed = useAnalysisStore((s) => s.setPlaybackSpeed)
 
   const frameChangeCb = options?.onFrameChange ?? setCurrentFrame
   const playStateCb = options?.onPlayStateChange ?? setIsPlaying
   const totalFramesCb = options?.onTotalFramesChange ?? setTotalFrames
   const fpsCb = options?.onFpsChange ?? setFps
+  const autoPlaySpeedCb = options?.onAutoPlaySpeed ?? setPlaybackSpeed
 
   useEffect(() => {
     const engine = new ScrubberEngine()
@@ -98,7 +103,10 @@ export function useScrubber(
       }
 
       setIsLoaded(true)
-      engineRef.current.play(0.5)
+      // Every clip opens playing in slow motion (Settings → Replay speed)
+      const speed = useSettingsStore.getState().replaySpeed || 0.5
+      autoPlaySpeedCb(speed)
+      engineRef.current.play(speed)
     } catch (err) {
       if (seq !== loadSeqRef.current) return
       if (String(err).includes('file-too-large')) {
@@ -110,7 +118,7 @@ export function useScrubber(
       setLoadFailed(true)
       setPreloadProgress(1)
     }
-  }, [totalFramesCb, fpsCb])
+  }, [totalFramesCb, fpsCb, autoPlaySpeedCb])
 
   const seek = useCallback((frame: number) => {
     engineRef.current?.seek(frame)

@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Square, Columns, FlipHorizontal } from 'lucide-react'
+import { Square, Columns, FlipHorizontal, Video, Loader2 } from 'lucide-react'
 import { ClipBrowser } from './ClipBrowser'
 import { VideoPlayer } from './VideoPlayer'
 import { ToolPalette } from './ToolPalette'
@@ -8,6 +8,10 @@ import { SyncControls } from '../comparison/SyncControls'
 import { useAnalysisStore } from '../../store/analysisStore'
 import { ImportView } from '../import/ImportView'
 import { cn } from '../../lib/utils/cn'
+import { useRecordingStore } from '../../store/recordingStore'
+import { useSettingsStore } from '../../store/settingsStore'
+import { useUiStore } from '../../store/uiStore'
+import { keyLabel } from '../../hooks/useGlobalHotkeys'
 
 export function AnalysisView() {
   // Selectors, not the whole store: this view must NOT re-render on every frame.
@@ -17,6 +21,9 @@ export function AnalysisView() {
   const pendingImportPath = useAnalysisStore((s) => s.pendingImportPath)
   const setPendingImportPath = useAnalysisStore((s) => s.setPendingImportPath)
   const [dualMode, setDualMode] = useState(false)
+  const savingSwing = useRecordingStore((s) => s.bufferStatus === 'processing')
+  const toggleLiveKey = useSettingsStore((s) => s.toggleLiveKey)
+  const setRoute = useUiStore((s) => s.setRoute)
 
   // A newly opened/dropped raw file is trimmed and converted before analysis
   if (pendingImportPath) {
@@ -55,10 +62,23 @@ export function AnalysisView() {
         </button>
         <div className="flex-1" />
         {dualMode && <SyncControls />}
+        <button
+          onClick={() => setRoute('capture')}
+          title={`Back to live cameras (${keyLabel(toggleLiveKey)})`}
+          className="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-white/50 hover:text-white/90 hover:bg-white/5 transition-colors"
+        >
+          <Video size={13} /> Go Live
+          <kbd className="px-1 rounded bg-white/10 text-[10px] font-mono">{keyLabel(toggleLiveKey)}</kbd>
+        </button>
       </div>
 
       {/* Main area */}
-      <div className="flex flex-1 min-h-0">
+      <div className="relative flex flex-1 min-h-0">
+        {savingSwing && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-3 py-1.5 rounded-md bg-black/80 border border-white/10 text-xs text-white/80 pointer-events-none">
+            <Loader2 size={13} className="animate-spin" /> Saving swing…
+          </div>
+        )}
         <ClipBrowser />
         <ToolPalette />
 

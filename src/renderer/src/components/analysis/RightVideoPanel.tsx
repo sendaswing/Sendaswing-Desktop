@@ -43,7 +43,8 @@ export function RightVideoPanel() {
     onFrameChange: setCurrentFrame,
     onPlayStateChange: setIsPlaying,
     onTotalFramesChange: setTotalFrames,
-    onFpsChange: setFps
+    onFpsChange: setFps,
+    onAutoPlaySpeed: setPlaybackSpeed
   })
 
   const { attachVideo, isLoaded: html5Loaded, loadFile, seekToFrame, play: html5Play, pause: html5Pause, stepForward: html5StepForward, stepBackward: html5StepBackward } = useVideoElement()

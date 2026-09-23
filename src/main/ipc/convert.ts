@@ -23,7 +23,7 @@ function unpacked(p: string): string {
   return p.replace('app.asar', 'app.asar.unpacked')
 }
 
-function ffmpegPath(): string {
+export function ffmpegPath(): string {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const p = require('ffmpeg-static') as string | null
   if (!p) throw new Error('ffmpeg binary not found - run: npm install ffmpeg-static --legacy-peer-deps')
@@ -75,7 +75,7 @@ function parseFrac(s: string | undefined): number {
   return d === 0 ? 0 : n / d
 }
 
-async function probe(filePath: string): Promise<ProbeResult> {
+export async function probe(filePath: string): Promise<ProbeResult> {
   const args = [
     '-v', 'error',
     '-print_format', 'json',
