@@ -1,13 +1,13 @@
 /**
  * Buffered (pre-roll) capture — main-process side.
  *
- * The renderer keeps a rolling window of camera video in memory. When a swing
- * is triggered (sound on the trigger mic, or the Save Swing hotkey) it hands us
- * the raw MediaRecorder segment plus where the swing sits inside it. We:
+ * The renderer keeps a rolling window of encoded camera video in memory. When a
+ * swing is triggered (sound on the trigger mic, or the Save Swing hotkey) it
+ * hands us that segment (a small MKV) plus where the swing sits inside it. We:
  *   1. write the segment to a temp file,
- *   2. cut [pre-roll .. post-roll] around the trigger with ffmpeg and encode it
- *      straight to the studio format (all-intra H.264, CFR, no audio) so the
- *      clip scrubs instantly in Analyze,
+ *   2. cut [pre-roll .. post-roll] around the trigger with ffmpeg, apply the
+ *      camera's flip, and encode it straight to the studio format (all-intra
+ *      H.264, CFR, no audio) so the clip scrubs instantly in Analyze,
  *   3. save it in the recordings folder as MM.DD.YYYY.<Angle>.<N>.mp4,
  *   4. delete the temp file and return a Clip.
  */
@@ -22,13 +22,16 @@ import { ffmpegPath, probe } from './convert'
 
 export interface SaveBufferedRequest {
   data: Uint8Array
-  ext: 'mp4' | 'webm'
+  ext: 'mp4' | 'webm' | 'mkv'
   /** Seconds into the segment where the saved clip should start. */
   startSec: number
   /** Length of the saved clip in seconds. */
   durationSec: number
   /** Frame rate reported by the camera track (MediaRecorder files often lack a usable one). */
   fps: number
+  /** Mirror left/right and/or upside down (camera mounted flipped). */
+  flipH?: boolean
+  flipV?: boolean
   swingNumber: number
   cameraAngle: string
   cameraLabel: string
@@ -71,7 +74,8 @@ export function registerBufferedCaptureHandlers(): void {
   ipcMain.handle('capture:save-buffered', async (_e, req: SaveBufferedRequest) => {
     const tmpDir = join(app.getPath('temp'), 'sendaswing-buffer')
     mkdirSync(tmpDir, { recursive: true })
-    const tmpPath = join(tmpDir, `seg-${Date.now()}-${Math.random().toString(36).slice(2)}.${req.ext}`)
+    const ext = ['mp4', 'webm', 'mkv'].includes(req.ext) ? req.ext : 'mkv'
+    const tmpPath = join(tmpDir, `seg-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`)
     const outPath = outputPathFor(req.cameraAngle, req.swingNumber)
 
     try {
@@ -80,6 +84,11 @@ export function registerBufferedCaptureHandlers(): void {
       const fps = req.fps > 0 && req.fps <= 480 ? Math.round(req.fps) : 60
       const start = Math.max(0, req.startSec)
       const duration = Math.max(0.1, req.durationSec)
+      const filters = [
+        ...(req.flipH ? ['hflip'] : []),
+        ...(req.flipV ? ['vflip'] : []),
+        'scale=trunc(iw/2)*2:trunc(ih/2)*2'
+      ]
 
       const args = [
         '-hide_banner', '-nostats', '-y',
@@ -88,7 +97,7 @@ export function registerBufferedCaptureHandlers(): void {
         '-i', tmpPath,
         '-t', duration.toFixed(3),
         '-an',
-        '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
+        '-vf', filters.join(','),
         '-fps_mode', 'cfr',
         '-r', String(fps),
         '-c:v', 'libx264',

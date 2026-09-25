@@ -45,8 +45,9 @@ Core workflows the app supports:
 - State: Zustand + immer (`src/renderer/src/store/*Store.ts`)
 - UI primitives: Radix (dropdown, slider, tooltip), lucide-react icons
 - Video: `mp4box` for demuxing, browser WebCodecs `VideoDecoder` for frames,
-  MediaRecorder for capture. COOP/COEP headers are set in the Vite dev server so
-  these APIs are available.
+  MediaRecorder for Standard capture, WebCodecs `VideoEncoder` for Buffered
+  capture. COOP/COEP headers are set in the Vite dev server so these APIs are
+  available.
 - Packaging: electron-builder 26 (`electron-builder.yml`), NSIS installer on
   Windows, output to `dist/`
 - Logging: electron-log
@@ -118,15 +119,23 @@ electron.vite.config.ts  Path aliases: @renderer @lib @store @hooks @components
   `recording:chunk` → `recording:finalize`) into a write stream. Files are
   named `MM.DD.YYYY.<Angle>.<N>.<mp4|webm>` and the swing number N auto-
   increments per day (`recording:next-swing-number`).
-- **Buffered capture** (`lib/recording/BufferedRecorder.ts`): MediaRecorder
-  can't drop old data, so each camera runs overlapping recorders started every
-  (pre-roll + 0.5 s) and discards ones older than ~1.5 windows — the oldest
-  live one always covers the pre-roll. On a trigger the best segment is
-  claimed, kept through the post-roll, and sent to `capture:save-buffered`,
-  which writes a temp file and has ffmpeg cut [trigger − pre, trigger + post]
-  straight to the all-intra studio format (`-preset superfast -crf 19`).
+- **Buffered capture** (`lib/recording/BufferedRecorder.ts`): ONE WebCodecs
+  H.264 `VideoEncoder` per camera (hardware preferred) fed by
+  `MediaStreamTrackProcessor` on a clone of the camera track. Encoded chunks go
+  into a rolling list trimmed at keyframes to ~pre-roll + 1.25 s; a keyframe is
+  forced every 0.5 s. On a trigger it waits out the post-roll, slices
+  [keyframe <= trigger − pre .. trigger + post], wraps it in a minimal MKV
+  (hand-written muxer at the bottom of the file, no dependency), and sends it to
+  `capture:save-buffered`, which has ffmpeg cut [trigger − pre, trigger + post],
+  apply the camera's flip (`hflip`/`vflip`), and encode straight to the
+  all-intra studio format (`-preset superfast -crf 19`). The recorder records
+  the raw camera — do NOT put `FlipProxy` (canvas redraw) in this path.
   Buffers only run while the Capture screen is showing in Buffered mode
-  (`useBufferedCapture`), so Analyze gets the CPU. Cost: 2 encoders per camera.
+  (`useBufferedCapture`), so Analyze gets the CPU.
+  History: the first version ran 2–3 overlapping MediaRecorders per camera,
+  restarted every ~1.5 s. With two 1080p/60 cameras the camera ran out of
+  capture buffers ("Failed to reserve output capture buffer" spam) and the
+  live preview fell from ~61 to ~28 fps. Don't go back to that design.
   The trigger mic (`SoundTrigger`) uses a Web Audio analyser with echo
   cancellation / noise suppression / AGC off, polled every 10 ms.
 - **Navigation** goes through `useUiStore().setRoute` (not local state) so
@@ -215,15 +224,20 @@ electron.vite.config.ts  Path aliases: @renderer @lib @store @hooks @components
 - [ ] Packaging: `build/icon.ico`, `author` in package.json, move renderer-only
       deps (react, radix, lucide, mp4box, zustand, immer, tailwind-merge, clsx)
       to devDependencies so the installer doesn't ship them twice
-- [ ] `FlipProxy` redraws on rAF (60 fps) — flipped recordings lose frames from
-      120 fps cameras; drive it from the track's frame rate instead
+- [ ] `FlipProxy` redraws on rAF (60 fps) — flipped Standard-mode recordings
+      lose frames from 120 fps cameras. Buffered mode no longer uses it (flip is
+      done in ffmpeg); consider doing the same for Standard recordings
 - [x] `VideoFrameExtractor` allocates a new OffscreenCanvas per frame — reuse one
 - [ ] `useKeyboardShortcuts` re-registers its listener on every render
 - [ ] iPhone HEVC `.mov` files likely fail to decode on Windows without the HEVC
       extension — show a clear message instead of hanging
 - [ ] Buffered capture: real-world test with the range cameras + trigger mic —
       tune threshold, confirm pre-roll timing lines up (impact lands ~pre-roll
-      seconds in), check CPU with 2 cameras at 120 fps (2 encoders each), and
-      time the save→replay delay
+      seconds in), and time the save→replay delay. First test (Sep 25 2026,
+      garage, two ELP 1080p/60 cams) found the preview lag → rewrote to one
+      WebCodecs encoder per camera. Re-test: preview should hold ~60 fps in
+      Buffered mode, no "Failed to reserve output capture buffer" lines, and
+      the DevTools console shows which encoder was picked
+      (`[BufferedRecorder] encoding …`)
 - [ ] Remove the leftover 5 s `setTimeout` in `ChunkDemuxer.load` that fires
       after resolve

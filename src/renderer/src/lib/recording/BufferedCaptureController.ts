@@ -11,7 +11,6 @@
  * (that is exactly what happens when auto-replay jumps to Analyze).
  */
 import { BufferedRecorder } from './BufferedRecorder'
-import { FlipProxy } from './FlipProxy'
 import { SoundTrigger } from './SoundTrigger'
 import { useRecordingStore } from '../../store/recordingStore'
 import { useSettingsStore } from '../../store/settingsStore'
@@ -32,7 +31,6 @@ export interface ArmSlot {
 interface ArmedCamera {
   slot: ArmSlot
   recorder: BufferedRecorder
-  proxy: FlipProxy | null
   fps: number
 }
 
@@ -55,12 +53,11 @@ class Controller {
     this.disarmCameras()
     const { preRollSec } = useSettingsStore.getState()
     for (const slot of slots) {
-      const proxy = slot.flipH || slot.flipV ? new FlipProxy(slot.stream, slot.flipH, slot.flipV) : null
-      const stream = proxy ? proxy.proxyStream : slot.stream
+      // Record the raw camera; flips are applied by ffmpeg when the swing is saved
       const fps = slot.stream.getVideoTracks()[0]?.getSettings?.().frameRate ?? 60
-      const recorder = new BufferedRecorder(stream, preRollSec)
+      const recorder = new BufferedRecorder(slot.stream, preRollSec, fps)
       recorder.start()
-      this.cameras.push({ slot, recorder, proxy, fps })
+      this.cameras.push({ slot, recorder, fps })
     }
     this.armed = this.cameras.length > 0
     this.updateStatus()
@@ -153,12 +150,18 @@ class Controller {
       }
       try {
         const data = new Uint8Array(await res.value.blob.arrayBuffer())
+        // Trust the camera's nominal rate unless the frames say otherwise (e.g. a
+        // camera that drops to 50 fps in low light) so replay has no duplicate frames
+        const measured = res.value.fps
+        const fps = measured > 0 && Math.abs(measured - cam.fps) / cam.fps > 0.05 ? Math.round(measured) : cam.fps
         const out = await api().capture.saveBuffered({
           data,
           ext: res.value.ext,
           startSec: res.value.startSec,
           durationSec: res.value.durationSec,
-          fps: cam.fps,
+          fps,
+          flipH: cam.slot.flipH,
+          flipV: cam.slot.flipV,
           swingNumber,
           cameraAngle: cam.slot.cameraAngle,
           cameraLabel: cam.slot.label,
@@ -197,10 +200,7 @@ class Controller {
   }
 
   private disarmCameras(): void {
-    for (const cam of this.cameras) {
-      cam.recorder.stop()
-      cam.proxy?.stop()
-    }
+    for (const cam of this.cameras) cam.recorder.stop()
     this.cameras = []
   }
 
