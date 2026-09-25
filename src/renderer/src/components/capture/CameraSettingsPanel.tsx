@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { X, FlipHorizontal, FlipVertical } from 'lucide-react'
 import { useCameraStore } from '../../store/cameraStore'
+import { useCameraProfileStore } from '../../store/cameraProfileStore'
+import { CONTROL_KEYS, nearestShutter, shutterOptions, type ControlKey } from '../../lib/camera/cameraControls'
 
 interface RangeCapability { min: number; max: number; step?: number }
 
@@ -49,15 +51,25 @@ export function CameraSettingsPanel({ slotIndex, stream, onClose }: Props) {
 
   const applyRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const deviceId = slot.deviceId
+
   const apply = useCallback((key: string, value: unknown) => {
     setSettings((prev) => ({ ...prev, [key]: value }))
     if (applyRef.current) clearTimeout(applyRef.current)
     applyRef.current = setTimeout(async () => {
       try {
         await track.applyConstraints({ advanced: [{ [key]: value } as any] })
+        // Remember it for this camera (what the camera actually took, if it snapped the value)
+        if (deviceId && (CONTROL_KEYS as readonly string[]).includes(key)) {
+          const actual = (track.getSettings() as Record<string, unknown>)[key]
+          const saved = typeof actual === 'number' || typeof actual === 'string' ? actual : value
+          if (typeof saved === 'number' || typeof saved === 'string') {
+            useCameraProfileStore.getState().setControl(deviceId, key as ControlKey, saved)
+          }
+        }
       } catch { /* camera rejected constraint — ignore */ }
     }, 150)
-  }, [track])
+  }, [track, deviceId])
 
   useEffect(() => () => { if (applyRef.current) clearTimeout(applyRef.current) }, [])
 
@@ -67,8 +79,8 @@ export function CameraSettingsPanel({ slotIndex, stream, onClose }: Props) {
   const isManualWb = settings.whiteBalanceMode === 'manual'
 
   const sliders: Array<{ key: keyof ExtCapabilities & keyof ExtSettings; label: string; show: boolean; format?: (n: number) => string }> = [
-    { key: 'exposureTime', label: 'Shutter', show: isManualExposure, format: (n) => `1/${Math.round(1e6 / n)}s` },
-    { key: 'exposureCompensation', label: 'Exposure', show: true, format: (n) => (n >= 0 ? `+${n.toFixed(1)}` : n.toFixed(1)) + ' EV' },
+    // Shutter is its own row of buttons (below); on Windows this is the camera's gain
+    { key: 'exposureCompensation', label: 'Gain', show: true },
     { key: 'iso', label: 'ISO', show: isManualExposure },
     { key: 'colorTemperature', label: 'White Balance', show: isManualWb, format: (n) => `${Math.round(n)}K` },
     { key: 'brightness', label: 'Brightness', show: true },
@@ -135,6 +147,32 @@ export function CameraSettingsPanel({ slotIndex, stream, onClose }: Props) {
               />
             )}
 
+            {isManualExposure && hasRange(caps.exposureTime) && (() => {
+              const options = shutterOptions(caps.exposureTime!)
+              const current = nearestShutter(options, settings.exposureTime)
+              return options.length > 0 && (
+                <div className="space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-white/40 text-xs uppercase tracking-wider">Shutter</span>
+                    <span className="text-white/30 text-xs">faster = less blur, darker</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {options.map((o) => (
+                      <button
+                        key={o.label}
+                        onClick={() => apply('exposureTime', o.value)}
+                        className={`px-2 py-0.5 rounded text-xs font-mono transition-colors ${
+                          current?.label === o.label ? 'bg-accent-500 text-black font-semibold' : 'bg-white/5 text-white/50 hover:bg-white/10'
+                        }`}
+                      >
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
+
             {visibleSliders.map(({ key, label, format }) => {
               const cap = caps[key] as RangeCapability
               const val = (settings[key] as number) ?? cap.min
@@ -156,7 +194,7 @@ export function CameraSettingsPanel({ slotIndex, stream, onClose }: Props) {
       </div>
 
       <p className="px-3 pb-2 text-white/20 text-xs shrink-0">
-        Available controls depend on camera and OS driver.
+        Settings are saved for this camera and come back next time. Available controls depend on camera and OS driver.
       </p>
     </div>
   )

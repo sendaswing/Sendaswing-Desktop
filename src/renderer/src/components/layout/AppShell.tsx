@@ -7,6 +7,7 @@ import { LibraryView } from '../library/LibraryView'
 import { SettingsView } from '../settings/SettingsView'
 import { useUiStore } from '../../store/uiStore'
 import { useGlobalHotkeys } from '../../hooks/useGlobalHotkeys'
+import { useRestoreCameras } from '../../hooks/useRestoreCameras'
 import { cn } from '../../lib/utils/cn'
 
 export function AppShell() {
@@ -16,6 +17,8 @@ export function AppShell() {
   const toast = useUiStore((s) => s.toast)
 
   useGlobalHotkeys()
+  // Reconnect the cameras used last time, with their saved settings
+  useRestoreCameras()
 
   return (
     <div className="flex flex-col h-full w-full bg-surface-900">

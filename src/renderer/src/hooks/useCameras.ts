@@ -1,5 +1,7 @@
 import { useEffect, useCallback } from 'react'
 import { useCameraStore } from '../store/cameraStore'
+import { useCameraProfileStore } from '../store/cameraProfileStore'
+import { applyControls, readControls } from '../lib/camera/cameraControls'
 
 const streams = new Map<number, MediaStream>()
 
@@ -33,6 +35,17 @@ export function useCameras() {
         audio: false
       })
       streams.set(slotIndex, stream)
+
+      // Put back this camera's saved shutter / gain / white balance etc. The
+      // first time we see a camera, save what it's set to now instead.
+      const track = stream.getVideoTracks()[0]
+      const deviceId = slot.deviceId
+      if (track) {
+        const saved = useCameraProfileStore.getState().profiles[deviceId]?.controls
+        if (saved && Object.keys(saved).length) await applyControls(track, saved)
+        else useCameraProfileStore.getState().setControls(deviceId, readControls(track))
+      }
+
       setStream(slotIndex, stream)
     } catch (err) {
       setSlotStatus(slotIndex, 'error', String(err))

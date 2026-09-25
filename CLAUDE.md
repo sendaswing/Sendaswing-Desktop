@@ -138,6 +138,21 @@ electron.vite.config.ts  Path aliases: @renderer @lib @store @hooks @components
   live preview fell from ~61 to ~28 fps. Don't go back to that design.
   The trigger mic (`SoundTrigger`) uses a Web Audio analyser with echo
   cancellation / noise suppression / AGC off, polled every 10 ms.
+- **Camera profiles** (`store/cameraProfileStore.ts`, localStorage key
+  `snds-cameras`): remembered per physical camera by `deviceId` — angle,
+  flips, and image controls (shutter, gain, white balance, brightness,
+  contrast, saturation, sharpness) — plus which camera was in which grid slot.
+  `useRestoreCameras` (called in AppShell) reconnects them at launch;
+  `startStream` re-applies the saved controls, or snapshots the camera's
+  current values the first time a camera is seen. The settings panel saves
+  every change. Both range cameras have the same name ("HD USB Camera
+  (32e4:4689)"), so deviceId is the only way to tell them apart.
+- **Camera controls on Windows** (`lib/camera/cameraControls.ts`): Chromium
+  reports `exposureTime` in 100 µs units and the driver only takes
+  power-of-two steps (156.25 = 1/64 s, 78.125 = 1/128 s … 1.22 = 1/8192 s);
+  10000 = "1 s", which the camera caps at the frame time. The panel shows
+  shutter as buttons (1/60 … 1/8000) instead of a slider for that reason.
+  `exposureCompensation` is really the camera's gain (0–176 on the ELPs).
 - **Navigation** goes through `useUiStore().setRoute` (not local state) so
   capture and hotkeys can switch screens.
 - **Scrubbing** is frame-based, not time-based: `ScrubberEngine` demuxes the
@@ -199,6 +214,11 @@ electron.vite.config.ts  Path aliases: @renderer @lib @store @hooks @components
   decoding had ALWAYS failed and every MP4 silently fell back to the slow
   HTML5 extractor path. Fixed — MP4s now decode through WebCodecs.
 - **App icon:** Brendan is supplying one. Goes in `build/icon.ico` (256×256).
+- **Garage camera settings (Sep 25 2026, current lighting):** shutter 1/128 s
+  (78.125), gain 176 (max), brightness 76, contrast 8, sharpness 25,
+  saturation 48, white balance manual 5000K (matches the 5000K PAR38s). Dim
+  but usable; club still blurs near impact. More light is coming (above the
+  FO view, maybe overhead) — then step the shutter to 1/250 → 1/500 → 1/1000.
 - **Buffered capture + hotkeys (Sep 2026):** built as above. Defaults:
   3 s before / 2 s after the strike, trigger threshold −15 dBFS, replay speed
   0.25×, auto-replay on. Clips from every armed camera share one swing number.

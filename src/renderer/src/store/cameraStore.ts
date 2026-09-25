@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import type { CameraSlot, CameraAngle, GridLayout } from '../types/camera'
+import { useCameraProfileStore } from './cameraProfileStore'
 
 interface CameraStore {
   availableDevices: MediaDeviceInfo[]
@@ -28,7 +29,7 @@ const defaultSlot = (index: number): CameraSlot => ({
 })
 
 export const useCameraStore = create<CameraStore>()(
-  immer((set) => ({
+  immer((set, get) => ({
     availableDevices: [],
     slots: [defaultSlot(0), defaultSlot(1), defaultSlot(2), defaultSlot(3)],
     gridLayout: '2x1',
@@ -43,11 +44,23 @@ export const useCameraStore = create<CameraStore>()(
     },
 
     assignDevice: (slotIndex, deviceId, label) => {
+      // A camera we've seen before brings back its own angle and flips
+      const profile = useCameraProfileStore.getState().profiles[deviceId]
       set((state) => {
-        state.slots[slotIndex].deviceId = deviceId
-        state.slots[slotIndex].label = label
-        state.slots[slotIndex].status = 'idle'
-        state.slots[slotIndex].error = null
+        const slot = state.slots[slotIndex]
+        slot.deviceId = deviceId
+        slot.label = label
+        slot.status = 'idle'
+        slot.error = null
+        if (profile) {
+          slot.cameraAngle = profile.angle
+          slot.flipH = profile.flipH
+          slot.flipV = profile.flipV
+        }
+      })
+      const slot = get().slots[slotIndex]
+      useCameraProfileStore.getState().rememberSlot(slotIndex, deviceId, {
+        label, angle: slot.cameraAngle, flipH: slot.flipH, flipV: slot.flipV
       })
     },
 
@@ -75,6 +88,8 @@ export const useCameraStore = create<CameraStore>()(
       set((state) => {
         state.slots[slotIndex].cameraAngle = angle
       })
+      const id = get().slots[slotIndex].deviceId
+      if (id) useCameraProfileStore.getState().updateProfile(id, { angle })
     },
 
     setFlip: (slotIndex, axis, value) => {
@@ -82,6 +97,8 @@ export const useCameraStore = create<CameraStore>()(
         if (axis === 'H') state.slots[slotIndex].flipH = value
         else state.slots[slotIndex].flipV = value
       })
+      const id = get().slots[slotIndex].deviceId
+      if (id) useCameraProfileStore.getState().updateProfile(id, axis === 'H' ? { flipH: value } : { flipV: value })
     }
   }))
 )
