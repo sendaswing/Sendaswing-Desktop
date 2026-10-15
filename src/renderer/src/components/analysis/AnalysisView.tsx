@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { Square, Columns, FlipHorizontal, Video, Loader2 } from 'lucide-react'
 import { ClipBrowser } from './ClipBrowser'
 import { VideoPlayer } from './VideoPlayer'
@@ -11,6 +11,7 @@ import { cn } from '../../lib/utils/cn'
 import { useRecordingStore } from '../../store/recordingStore'
 import { useSettingsStore } from '../../store/settingsStore'
 import { useUiStore } from '../../store/uiStore'
+import { useComparisonStore } from '../../store/comparisonStore'
 import { keyLabel } from '../../hooks/useGlobalHotkeys'
 
 export function AnalysisView() {
@@ -20,7 +21,9 @@ export function AnalysisView() {
   const setFlipH = useAnalysisStore((s) => s.setFlipH)
   const pendingImportPath = useAnalysisStore((s) => s.pendingImportPath)
   const setPendingImportPath = useAnalysisStore((s) => s.setPendingImportPath)
-  const [dualMode, setDualMode] = useState(false)
+  // In a store (not local state) so a two-camera swing can open side by side
+  const dualMode = useComparisonStore((s) => s.dualMode)
+  const setDualMode = useComparisonStore((s) => s.setDualMode)
   const savingSwing = useRecordingStore((s) => s.bufferStatus === 'processing')
   const toggleLiveKey = useSettingsStore((s) => s.toggleLiveKey)
   const setRoute = useUiStore((s) => s.setRoute)

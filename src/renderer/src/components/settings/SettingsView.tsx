@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react'
-import { FolderOpen, FolderInput, CheckCircle, Keyboard } from 'lucide-react'
+import { FolderOpen, FolderInput, CheckCircle, Keyboard, MonitorPlay } from 'lucide-react'
 import { useSettingsStore } from '../../store/settingsStore'
+import { useUiStore } from '../../store/uiStore'
+import { toggleStreamWindow } from '../stream/streamWindow'
 import { keyLabel } from '../../hooks/useGlobalHotkeys'
 import { cn } from '../../lib/utils/cn'
 
@@ -66,8 +68,9 @@ export function SettingsView() {
   const {
     recordingsDir, setRecordingsDir, libraryDir, setLibraryDir, recordingDelay, setRecordingDelay, recordingDuration, setRecordingDuration,
     preRollSec, setPreRollSec, postRollSec, setPostRollSec, autoReplay, setAutoReplay, replaySpeed, setReplaySpeed,
-    toggleLiveKey, setToggleLiveKey, saveSwingKey, setSaveSwingKey
+    toggleLiveKey, setToggleLiveKey, saveSwingKey, setSaveSwingKey, streamOverlays, setStreamOverlays
   } = useSettingsStore()
+  const streamOpen = useUiStore((s) => s.streamWindowOpen)
   const [recSaved, setRecSaved] = useState(false)
   const [libSaved, setLibSaved] = useState(false)
 
@@ -226,6 +229,47 @@ export function SettingsView() {
               </div>
               <HotkeyButton value={saveSwingKey} other={toggleLiveKey} onChange={setSaveSwingKey} />
             </div>
+          </div>
+        </section>
+
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-sm font-medium text-white/60 mb-1 flex items-center gap-1.5"><MonitorPlay size={14} /> Stream Window</h2>
+            <p className="text-xs text-white/30 mb-3">
+              A clean 1920×1080 window for OBS. It shows the live cameras while you're on Capture and the swing replay
+              (every angle, playing together at the replay speed) while you're on Analyze. In OBS add a Window Capture
+              source, pick "SaS Stream" and set Capture Method to "Windows 10 (1903 and up)". Keep the window open (it can
+              sit behind other windows, just don't minimize it). Double-click it for fullscreen.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between bg-black/30 border border-white/10 rounded-lg px-3 py-2">
+              <div>
+                <p className="text-xs text-white/70">Stream window</p>
+                <p className="text-xs text-white/30">{streamOpen ? 'Open' : 'Closed'} · also on the Stream button in the sidebar</p>
+              </div>
+              <button
+                onClick={toggleStreamWindow}
+                className={cn(
+                  'px-3 py-1.5 rounded text-xs transition-colors shrink-0',
+                  streamOpen ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30' : 'bg-white/5 text-white/60 hover:bg-white/10 hover:text-white/90'
+                )}
+              >
+                {streamOpen ? 'Close' : 'Open'}
+              </button>
+            </div>
+            <label className="flex items-center justify-between bg-black/30 border border-white/10 rounded-lg px-3 py-2 cursor-pointer">
+              <div>
+                <p className="text-xs text-white/70">Show labels on stream</p>
+                <p className="text-xs text-white/30">LIVE / REPLAY badge and the FO / DL angle on each camera</p>
+              </div>
+              <input
+                type="checkbox"
+                checked={streamOverlays}
+                onChange={(e) => setStreamOverlays(e.target.checked)}
+                className="w-4 h-4 accent-green-500 shrink-0"
+              />
+            </label>
           </div>
         </section>
 

@@ -8,11 +8,14 @@ interface ComparisonStore {
   leftFrame: number
   rightFrame: number
   isSynced: boolean
+  /** Analyze shows two panels side by side (left = activeClip, right = rightClip). */
+  dualMode: boolean
   setLeftClip: (clip: Clip | null) => void
   setRightClip: (clip: Clip | null) => void
   setLeftFrame: (frame: number) => void
   setRightFrame: (frame: number) => void
   setIsSynced: (val: boolean) => void
+  setDualMode: (val: boolean) => void
 }
 
 export const useComparisonStore = create<ComparisonStore>()(
@@ -22,6 +25,7 @@ export const useComparisonStore = create<ComparisonStore>()(
     leftFrame: 0,
     rightFrame: 0,
     isSynced: false,
+    dualMode: false,
 
     setLeftClip: (clip) => {
       set((state) => {
@@ -52,6 +56,12 @@ export const useComparisonStore = create<ComparisonStore>()(
     setIsSynced: (val) => {
       set((state) => {
         state.isSynced = val
+      })
+    },
+
+    setDualMode: (val) => {
+      set((state) => {
+        state.dualMode = val
       })
     }
   }))

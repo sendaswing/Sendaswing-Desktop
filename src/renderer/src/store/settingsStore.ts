@@ -26,6 +26,9 @@ interface SettingsStore {
   /** Speed clips auto-play at when they open in Analyze. */
   replaySpeed: number
 
+  /** Stream window: show LIVE / REPLAY / FO·DL labels over the video. */
+  streamOverlays: boolean
+
   // Hotkeys (KeyboardEvent.key values)
   toggleLiveKey: string
   saveSwingKey: string
@@ -41,6 +44,7 @@ interface SettingsStore {
   setTriggerThresholdDb: (db: number) => void
   setAutoReplay: (v: boolean) => void
   setReplaySpeed: (n: number) => void
+  setStreamOverlays: (v: boolean) => void
   setToggleLiveKey: (k: string) => void
   setSaveSwingKey: (k: string) => void
 }
@@ -60,6 +64,7 @@ export const useSettingsStore = create<SettingsStore>()(
       triggerThresholdDb: -15,
       autoReplay: true,
       replaySpeed: 0.25,
+      streamOverlays: true,
 
       toggleLiveKey: 'Tab',
       saveSwingKey: 's',
@@ -75,6 +80,7 @@ export const useSettingsStore = create<SettingsStore>()(
       setTriggerThresholdDb: (db) => { set((s) => { s.triggerThresholdDb = db }) },
       setAutoReplay: (v) => { set((s) => { s.autoReplay = v }) },
       setReplaySpeed: (n) => { set((s) => { s.replaySpeed = n }) },
+      setStreamOverlays: (v) => { set((s) => { s.streamOverlays = v }) },
       setToggleLiveKey: (k) => { set((s) => { s.toggleLiveKey = k }) },
       setSaveSwingKey: (k) => { set((s) => { s.saveSwingKey = k }) }
     })),
@@ -90,6 +96,7 @@ export const useSettingsStore = create<SettingsStore>()(
         triggerThresholdDb: s.triggerThresholdDb,
         autoReplay: s.autoReplay,
         replaySpeed: s.replaySpeed,
+        streamOverlays: s.streamOverlays,
         toggleLiveKey: s.toggleLiveKey,
         saveSwingKey: s.saveSwingKey
       })

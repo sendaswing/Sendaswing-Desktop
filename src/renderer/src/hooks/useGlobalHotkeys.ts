@@ -28,6 +28,40 @@ export function keyLabel(key: string): string {
 }
 
 /**
+ * The hotkey handler itself. Exported so the stream window can forward its key
+ * presses here (a foot pedal press while that window has focus still works).
+ */
+export function handleGlobalHotkey(e: KeyboardEvent): void {
+  if (e.repeat || e.ctrlKey || e.altKey || e.metaKey) return
+  const t = e.target as HTMLElement | null
+  // Don't steal keys while typing text (search box, number fields)
+  if (t instanceof HTMLInputElement && !['range', 'checkbox', 'radio', 'button'].includes(t.type)) return
+  if (t && (t instanceof HTMLTextAreaElement || t.isContentEditable)) return
+  // The Settings screen captures keys while re-binding a hotkey
+  if (t?.closest?.('[data-hotkey-capture]')) return
+
+  const { toggleLiveKey, saveSwingKey, captureMode } = useSettingsStore.getState()
+  const { route, setRoute } = useUiStore.getState()
+
+  if (keyMatches(e, toggleLiveKey)) {
+    e.preventDefault()
+    e.stopPropagation()
+    // A focused dropdown/button would otherwise keep eating keys after the switch
+    if (t && t !== document.body) t.blur?.()
+    setRoute(route === 'capture' ? 'analyze' : 'capture')
+    return
+  }
+
+  if (route === 'capture' && keyMatches(e, saveSwingKey)) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (t && t !== document.body) t.blur?.()
+    if (captureMode === 'buffered') void bufferedCapture.trigger()
+    else standardRecordToggle?.()
+  }
+}
+
+/**
  * App-wide hotkeys:
  *  - Toggle Live/Replay (default Tab): Capture ⇄ Analyze. From any other
  *    screen it goes to Capture (live).
@@ -36,37 +70,8 @@ export function keyLabel(key: string): string {
  */
 export function useGlobalHotkeys(): void {
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.repeat || e.ctrlKey || e.altKey || e.metaKey) return
-      const t = e.target as HTMLElement | null
-      // Don't steal keys while typing text (search box, number fields)
-      if (t instanceof HTMLInputElement && !['range', 'checkbox', 'radio', 'button'].includes(t.type)) return
-      if (t && (t instanceof HTMLTextAreaElement || t.isContentEditable)) return
-      // The Settings screen captures keys while re-binding a hotkey
-      if (t?.closest?.('[data-hotkey-capture]')) return
-
-      const { toggleLiveKey, saveSwingKey, captureMode } = useSettingsStore.getState()
-      const { route, setRoute } = useUiStore.getState()
-
-      if (keyMatches(e, toggleLiveKey)) {
-        e.preventDefault()
-        e.stopPropagation()
-        // A focused dropdown/button would otherwise keep eating keys after the switch
-        if (t && t !== document.body) t.blur?.()
-        setRoute(route === 'capture' ? 'analyze' : 'capture')
-        return
-      }
-
-      if (route === 'capture' && keyMatches(e, saveSwingKey)) {
-        e.preventDefault()
-        e.stopPropagation()
-        if (t && t !== document.body) t.blur?.()
-        if (captureMode === 'buffered') void bufferedCapture.trigger()
-        else standardRecordToggle?.()
-      }
-    }
     // Capture phase so these win over view-level shortcuts (e.g. Analyze's keys)
-    window.addEventListener('keydown', onKey, true)
-    return () => window.removeEventListener('keydown', onKey, true)
+    window.addEventListener('keydown', handleGlobalHotkey, true)
+    return () => window.removeEventListener('keydown', handleGlobalHotkey, true)
   }, [])
 }

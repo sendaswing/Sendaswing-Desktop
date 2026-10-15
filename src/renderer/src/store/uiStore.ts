@@ -8,6 +8,9 @@ interface UiStore {
   /** Short status message shown in the corner (e.g. "Swing 5 saved"). */
   toast: { text: string; kind: 'info' | 'error' } | null
   showToast: (text: string, kind?: 'info' | 'error') => void
+  /** The OBS stream window is open. */
+  streamWindowOpen: boolean
+  setStreamWindowOpen: (open: boolean) => void
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null
@@ -20,5 +23,7 @@ export const useUiStore = create<UiStore>()((set) => ({
     if (toastTimer) clearTimeout(toastTimer)
     set({ toast: { text, kind } })
     toastTimer = setTimeout(() => set({ toast: null }), kind === 'error' ? 6000 : 2500)
-  }
+  },
+  streamWindowOpen: false,
+  setStreamWindowOpen: (streamWindowOpen) => set({ streamWindowOpen })
 }))

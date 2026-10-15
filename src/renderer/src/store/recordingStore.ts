@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
+import type { Clip } from '../types/clip'
 
 export type RecordingStatus = 'idle' | 'recording' | 'stopping' | 'saved'
 
@@ -37,6 +38,10 @@ interface RecordingStore {
   setMicLevelDb: (db: number | null) => void
   setMicError: (e: string | null) => void
 
+  /** Clips from the most recent buffered swing, one per camera, in camera-slot order. */
+  lastSwingClips: Clip[]
+  setLastSwingClips: (clips: Clip[]) => void
+
   setSlotRecording: (slotIndex: number, update: Partial<SlotRecording>) => void
   setIsRecordingAll: (val: boolean) => void
   setPendingClub: (club: string) => void
@@ -61,11 +66,13 @@ export const useRecordingStore = create<RecordingStore>()(
     bufferedSec: 0,
     micLevelDb: null,
     micError: null,
+    lastSwingClips: [],
 
     setBufferStatus: (v) => { set((state) => { state.bufferStatus = v }) },
     setBufferedSec: (n) => { set((state) => { state.bufferedSec = n }) },
     setMicLevelDb: (db) => { set((state) => { state.micLevelDb = db }) },
     setMicError: (e) => { set((state) => { state.micError = e }) },
+    setLastSwingClips: (clips) => { set((state) => { state.lastSwingClips = clips }) },
 
     setSlotRecording: (slotIndex, update) => {
       set((state) => { Object.assign(state.slotRecordings[slotIndex], update) })

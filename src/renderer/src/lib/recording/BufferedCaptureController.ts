@@ -17,6 +17,8 @@ import { useSettingsStore } from '../../store/settingsStore'
 import { useClipStore } from '../../store/clipStore'
 import { useAnalysisStore } from '../../store/analysisStore'
 import { useUiStore } from '../../store/uiStore'
+import { useComparisonStore } from '../../store/comparisonStore'
+import { pairedStart } from '../replay/pairedStart'
 import type { Clip } from '../../types/clip'
 
 export interface ArmSlot {
@@ -44,6 +46,8 @@ class Controller {
   private armed = false
   private capturing = false
   private processingCount = 0
+  /** Id of the clip this controller last put in Analyze's right panel. */
+  private autoRightClipId: string | null = null
 
   get isArmed(): boolean {
     return this.armed
@@ -179,7 +183,10 @@ class Controller {
     const addClip = useClipStore.getState().addClip
     for (let i = clips.length - 1; i >= 0; i--) addClip(clips[i])
 
-    if (autoReplay && clips[0]) useAnalysisStore.getState().setActiveClip(clips[0])
+    // Remembered for the stream window, which replays every angle of the swing
+    if (clips.length) useRecordingStore.getState().setLastSwingClips(clips)
+
+    if (autoReplay && clips[0]) this.openInAnalyze(clips)
 
     this.processingCount--
     this.updateStatus()
@@ -190,6 +197,28 @@ class Controller {
     } else if (clips.length) {
       ui.showToast(`Swing ${swingNumber} saved`)
     }
+  }
+
+  /**
+   * Show the new swing in Analyze laid out like the Capture screen: one camera
+   * → single panel; two or more → side by side (camera 1 left, camera 2 right),
+   * both starting at the replay speed at the same moment.
+   */
+  private openInAnalyze(clips: Clip[]): void {
+    const comparison = useComparisonStore.getState()
+    if (clips.length >= 2) {
+      pairedStart.expect([clips[0].filePath, clips[1].filePath])
+      comparison.setRightClip(clips[1])
+      comparison.setDualMode(true)
+      this.autoRightClipId = clips[1].id
+    } else if (this.autoRightClipId && comparison.rightClip?.id === this.autoRightClipId) {
+      // Back to one camera: drop the previous swing's second angle. A comparison
+      // clip you picked yourself (e.g. a tour swing) stays where it is.
+      comparison.setRightClip(null)
+      comparison.setDualMode(false)
+      this.autoRightClipId = null
+    }
+    useAnalysisStore.getState().setActiveClip(clips[0])
   }
 
   private stopMic(): void {

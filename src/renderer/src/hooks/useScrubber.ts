@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { ScrubberEngine } from '../lib/scrubber/ScrubberEngine'
 import { useAnalysisStore } from '../store/analysisStore'
 import { useSettingsStore } from '../store/settingsStore'
+import { pairedStart } from '../lib/replay/pairedStart'
 
 /** Files above this get a warning; above MAX_BYTES the main process refuses them. */
 export const WARN_FILE_BYTES = 250 * 1024 * 1024
@@ -106,7 +107,11 @@ export function useScrubber(
       // Every clip opens playing in slow motion (Settings → Replay speed)
       const speed = useSettingsStore.getState().replaySpeed || 0.5
       autoPlaySpeedCb(speed)
-      engineRef.current.play(speed)
+      const start = () => {
+        if (seq === loadSeqRef.current) engineRef.current?.play(speed)
+      }
+      // A multi-camera swing: wait on frame 0 so both panels start together
+      if (!pairedStart.hold(filePath, start)) start()
     } catch (err) {
       if (seq !== loadSeqRef.current) return
       if (String(err).includes('file-too-large')) {

@@ -34,6 +34,12 @@ Core workflows the app supports:
 - **Settings** — recordings folder and library folder, stored in
   `settings.json` under Electron's userData path. Capture/replay preferences
   and hotkeys live in the renderer's persisted `settingsStore` (localStorage).
+- **Stream window** — a separate "SaS Stream" window (Sidebar → Stream, or
+  Settings → Stream Window) for OBS Window Capture. On Capture it shows the
+  live cameras laid out like the Capture grid (1 = full, 2 = side by side,
+  3–4 = 2×2); on Analyze it replays the swing — every angle of the latest
+  buffered swing, all starting together at the replay speed, looping, kept in
+  sync. Optional LIVE / REPLAY / FO·DL labels. Double-click = fullscreen.
 - **Hotkeys** (rebindable in Settings): **Tab** toggles Live (Capture) ⇄
   Replay (Analyze); **S** on the Capture screen saves a buffered swing (or
   starts/stops a Standard recording). Handled in `hooks/useGlobalHotkeys.ts`.
@@ -93,7 +99,7 @@ src/
   preload/index.ts    contextBridge → exposes window.electronAPI to the renderer
   renderer/           React app (browser side, no Node access)
     src/
-      components/     capture/ import/ analysis/ comparison/ library/ layout/ settings/
+      components/     capture/ import/ analysis/ comparison/ library/ layout/ settings/ stream/
       hooks/          useRecorder, useScrubber, useDrawing, useCameras, useVideoElement,
                       useBufferedCapture, useGlobalHotkeys…
       lib/
@@ -101,6 +107,7 @@ src/
         recording/    RecordingSession, FlipProxy, BufferedRecorder, SoundTrigger,
                       BufferedCaptureController (singleton)
         drawing/      tools, serializer
+        replay/       pairedStart (start both Analyze panels at the same moment)
       store/          Zustand stores (analysis, camera, clip, comparison, recording, settings,
                       ui = current route + toast)
       types/          clip, camera, drawing, scrubber
@@ -153,6 +160,23 @@ electron.vite.config.ts  Path aliases: @renderer @lib @store @hooks @components
   10000 = "1 s", which the camera caps at the frame time. The panel shows
   shutter as buttons (1/60 … 1/8000) instead of a slider for that reason.
   `exposureCompensation` is really the camera's gain (0–176 on the ELPs).
+- **Stream window** (`components/stream/`): opened with `window.open('', 'sas-stream')`
+  from the main renderer; `src/main/index.ts` allows that one window name and
+  sizes it 1920×1080 with background throttling off. It runs in the SAME
+  process/JS realm, so `StreamView` is a second React root that reads the same
+  Zustand stores and plays the very same camera `MediaStream`s — never open a
+  camera twice (Windows usually allows one owner per USB camera). Styles are
+  inline (the window doesn't get Tailwind). Replay uses plain `<video>` via
+  `sas-media://`, not the ScrubberEngine; video 0 is the clock and the others
+  are nudged with playbackRate (hard seek if > 0.25 s off). Key presses in the
+  stream window are forwarded to `handleGlobalHotkey`. Main also disables
+  Chromium's native window-occlusion detection and renderer backgrounding so
+  OBS capture and the trigger mic keep running when GSPro covers the app.
+- **Two-camera swings in Analyze**: `BufferedCaptureController.openInAnalyze`
+  puts camera 1 left / camera 2 right (`comparisonStore.dualMode`, formerly
+  local state in AnalysisView) and uses `pairedStart` so both panels hold on
+  frame 0 until both are loaded, then play together at the replay speed.
+  `recordingStore.lastSwingClips` holds every angle of the latest swing.
 - **Navigation** goes through `useUiStore().setRoute` (not local state) so
   capture and hotkeys can switch screens.
 - **Scrubbing** is frame-based, not time-based: `ScrubberEngine` demuxes the
@@ -222,6 +246,11 @@ electron.vite.config.ts  Path aliases: @renderer @lib @store @hooks @components
 - **Buffered capture + hotkeys (Sep 2026):** built as above. Defaults:
   3 s before / 2 s after the strike, trigger threshold −15 dBFS, replay speed
   0.25×, auto-replay on. Clips from every armed camera share one swing number.
+- **Stream window (Sep 2026):** SaS-Desktop owns the FO/DL cameras; OBS
+  captures the "SaS Stream" window rather than opening the cameras itself.
+  Built as above. Analyze drawings and scrubbing are NOT mirrored to the
+  stream window (it loops the replay on its own); capture the main window in
+  OBS for analysis recordings where the software should be visible.
 - **Health check (Sep 2026) order of work:** frame cache → drag-drop + decoder
   fixes → async file loading → packaging → pre-v1 cleanup list below.
 
@@ -259,5 +288,9 @@ electron.vite.config.ts  Path aliases: @renderer @lib @store @hooks @components
       Buffered mode, no "Failed to reserve output capture buffer" lines, and
       the DevTools console shows which encoder was picked
       (`[BufferedRecorder] encoding …`)
+- [ ] Stream window: real-world test in OBS on the garage PC — Window Capture
+      ("Windows 10 (1903 and up)") keeps updating with GSPro fullscreen on
+      top; live 120 fps cameras stay smooth in both windows; FO/DL replay sync
+      looks right; CPU with buffers + stream window + OBS encoding
 - [ ] Remove the leftover 5 s `setTimeout` in `ChunkDemuxer.load` that fires
       after resolve
