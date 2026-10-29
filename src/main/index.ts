@@ -3,6 +3,7 @@ import { join } from 'path'
 import { pathToFileURL } from 'url'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerIpcHandlers } from './ipc'
+import log from 'electron-log/main'
 
 // sas-media://  →  streams a local video file to <video> without copying it
 // through IPC. Must be registered before app is ready. URL form:
@@ -114,6 +115,13 @@ function createWindow(): void {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
 
+  // If the window's renderer dies (e.g. a camera driver takes it down), log
+  // why and reload it instead of leaving a dead window behind.
+  mainWindow.webContents.on('render-process-gone', (_e, details) => {
+    log.error('[crash] renderer gone:', details.reason, 'exit code', details.exitCode)
+    if (details.reason !== 'clean-exit' && !mainWindow.isDestroyed()) mainWindow.webContents.reload()
+  })
+
   registerIpcHandlers(mainWindow)
 }
 
@@ -122,6 +130,12 @@ app.whenReady().then(() => {
   registerMediaProtocol()
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
+  })
+  // Cameras run in Chromium's separate video-capture process. When a camera
+  // driver crashes that process, every camera stops until it restarts — log it
+  // so we can see which one it was (log file: %APPDATA%\\sendaswing-desktop\\logs\\main.log).
+  app.on('child-process-gone', (_e, details) => {
+    log.error('[crash] child process gone:', details.type, details.serviceName ?? '', details.reason, 'exit code', details.exitCode)
   })
   createWindow()
   app.on('activate', () => {

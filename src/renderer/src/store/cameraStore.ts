@@ -35,8 +35,15 @@ export const useCameraStore = create<CameraStore>()(
     gridLayout: '2x1',
 
     refreshDevices: async () => {
-      await navigator.mediaDevices.getUserMedia({ video: true, audio: false }).catch(() => {})
-      const devices = await navigator.mediaDevices.enumerateDevices()
+      let devices = await navigator.mediaDevices.enumerateDevices()
+      // Camera names only show up once permission has been granted. Open a
+      // camera just long enough to get it, then close it again right away —
+      // leaving it open holds that camera so no slot can use it.
+      if (devices.some((d) => d.kind === 'videoinput' && !d.label)) {
+        const probe = await navigator.mediaDevices.getUserMedia({ video: true, audio: false }).catch(() => null)
+        probe?.getTracks().forEach((t) => t.stop())
+        devices = await navigator.mediaDevices.enumerateDevices()
+      }
       const videoDevices = devices.filter((d) => d.kind === 'videoinput')
       set((state) => {
         state.availableDevices = videoDevices

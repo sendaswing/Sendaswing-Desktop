@@ -26,6 +26,8 @@ interface CameraProfileStore {
   updateProfile: (deviceId: string, patch: Partial<Omit<CameraProfile, 'controls'>>) => void
   setControls: (deviceId: string, controls: CameraControls) => void
   setControl: (deviceId: string, key: ControlKey, value: number | string) => void
+  /** Forget which camera was in which slot (keeps each camera's settings). */
+  clearSlots: () => void
 }
 
 const emptyProfile = (label: string): CameraProfile => ({
@@ -57,6 +59,12 @@ export const useCameraProfileStore = create<CameraProfileStore>()(
         set((s) => {
           const p = s.profiles[deviceId] ?? (s.profiles[deviceId] = emptyProfile(''))
           p.controls = { ...controls }
+        })
+      },
+
+      clearSlots: () => {
+        set((s) => {
+          s.slotDevices = [null, null, null, null]
         })
       },
 
