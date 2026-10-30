@@ -3,6 +3,7 @@ import { join } from 'path'
 import { pathToFileURL } from 'url'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerIpcHandlers } from './ipc'
+import { getCameraBackend, setCameraBackend } from './ipc/settings'
 import log from 'electron-log/main'
 
 // sas-media://  →  streams a local video file to <video> without copying it
@@ -12,7 +13,15 @@ import log from 'electron-log/main'
 // windows. Without these, Windows reports the window as hidden, Chromium stops
 // painting it (OBS Window Capture freezes on the last frame) and throttles
 // timers (the trigger mic's 10 ms polling slows to once a second).
-app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
+//
+// All disabled features must go in ONE switch — a second 'disable-features'
+// would replace the first. 'MediaFoundationVideoCapture' is added when the
+// camera driver mode is Compatibility (DirectShow), see ipc/settings.ts.
+const disabledFeatures = ['CalculateNativeWinOcclusion']
+if (process.platform === 'win32' && getCameraBackend() === 'compatibility') {
+  disabledFeatures.push('MediaFoundationVideoCapture')
+}
+app.commandLine.appendSwitch('disable-features', disabledFeatures.join(','))
 app.commandLine.appendSwitch('disable-renderer-backgrounding')
 app.commandLine.appendSwitch('disable-background-timer-throttling')
 
@@ -134,8 +143,20 @@ app.whenReady().then(() => {
   // Cameras run in Chromium's separate video-capture process. When a camera
   // driver crashes that process, every camera stops until it restarts — log it
   // so we can see which one it was (log file: %APPDATA%\\sendaswing-desktop\\logs\\main.log).
+  log.info('[cameras] driver mode:', getCameraBackend())
   app.on('child-process-gone', (_e, details) => {
     log.error('[crash] child process gone:', details.type, details.serviceName ?? '', details.reason, 'exit code', details.exitCode)
+    if (!/video_capture/i.test(details.serviceName ?? '') || details.reason === 'clean-exit') return
+    // The camera process crashed. Switch to Compatibility (DirectShow) for the
+    // next launch if we weren't already on it, and tell the window.
+    const switched = process.platform === 'win32' && getCameraBackend() !== 'compatibility'
+    if (switched) {
+      setCameraBackend('compatibility')
+      log.warn('[cameras] switched camera driver mode to compatibility (DirectShow) for next launch')
+    }
+    for (const w of BrowserWindow.getAllWindows()) {
+      if (!w.isDestroyed()) w.webContents.send('camera:service-crashed', { switched })
+    }
   })
   createWindow()
   app.on('activate', () => {
