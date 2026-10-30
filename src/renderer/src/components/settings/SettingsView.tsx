@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { FolderOpen, FolderInput, CheckCircle, Keyboard, MonitorPlay } from 'lucide-react'
+import { FolderOpen, FolderInput, CheckCircle, Keyboard, MonitorPlay, Camera, RotateCw } from 'lucide-react'
 import { useSettingsStore } from '../../store/settingsStore'
 import { useUiStore } from '../../store/uiStore'
 import { toggleStreamWindow } from '../stream/streamWindow'
@@ -73,11 +73,24 @@ export function SettingsView() {
   const streamOpen = useUiStore((s) => s.streamWindowOpen)
   const [recSaved, setRecSaved] = useState(false)
   const [libSaved, setLibSaved] = useState(false)
+  // Camera driver mode as saved, and as the app is actually running right now
+  const [cameraBackend, setCameraBackendState] = useState<'standard' | 'compatibility' | null>(null)
+  const [runningBackend, setRunningBackend] = useState<'standard' | 'compatibility' | null>(null)
 
   useEffect(() => {
     api()?.getRecordingsDir().then((dir: string) => { if (dir) setRecordingsDir(dir) })
     api()?.getLibraryDir().then((dir: string) => { if (dir) setLibraryDir(dir) })
+    api()?.getCameraBackend?.().then((b: { saved: 'standard' | 'compatibility'; running: 'standard' | 'compatibility' }) => {
+      setCameraBackendState(b.saved)
+      setRunningBackend(b.running)
+    })
   }, [])
+
+  const chooseBackend = async (b: 'standard' | 'compatibility') => {
+    const saved = await api()?.setCameraBackend?.(b)
+    if (saved) setCameraBackendState(saved)
+  }
+  const needsRestart = cameraBackend !== null && runningBackend !== null && cameraBackend !== runningBackend
 
   const handleOpenRecordings = async () => { await api()?.openRecordingsDir() }
   const handleChangeRecordings = async () => {
@@ -270,6 +283,41 @@ export function SettingsView() {
                 className="w-4 h-4 accent-green-500 shrink-0"
               />
             </label>
+          </div>
+        </section>
+
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-sm font-medium text-white/60 mb-1 flex items-center gap-1.5"><Camera size={14} /> Camera Driver Mode</h2>
+            <p className="text-xs text-white/30 mb-3">
+              How the app talks to the cameras. Standard uses Windows Media Foundation. Compatibility uses the older
+              DirectShow path — use it if picking a camera crashes the cameras or none will load. The app switches to
+              Compatibility on its own after a camera crash. Changes take effect after a restart.
+            </p>
+          </div>
+          <div className="flex items-center justify-between bg-black/30 border border-white/10 rounded-lg px-3 py-2">
+            <div className="flex gap-1">
+              {(['standard', 'compatibility'] as const).map((b) => (
+                <button
+                  key={b}
+                  onClick={() => chooseBackend(b)}
+                  className={cn(
+                    'px-3 py-1.5 rounded text-xs transition-colors capitalize',
+                    cameraBackend === b ? 'bg-accent-500/25 text-white/90' : 'bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/80'
+                  )}
+                >
+                  {b}
+                </button>
+              ))}
+            </div>
+            {needsRestart && (
+              <button
+                onClick={() => (window as any).electronAPI?.app?.relaunch()}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-accent-500/20 hover:bg-accent-500/30 text-xs text-white/85 transition-colors shrink-0"
+              >
+                <RotateCw size={13} /> Restart now
+              </button>
+            )}
           </div>
         </section>
 

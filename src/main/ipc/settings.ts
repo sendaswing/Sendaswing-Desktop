@@ -4,9 +4,19 @@ import { join } from 'path'
 
 const SETTINGS_PATH = join(app.getPath('userData'), 'settings.json')
 
+/**
+ * How Chromium talks to the cameras on Windows.
+ *  - 'standard'      Media Foundation (Chromium's default)
+ *  - 'compatibility' DirectShow — the older path. Some camera drivers crash
+ *                    Chromium's camera process under Media Foundation but
+ *                    work fine here. Takes effect after a restart.
+ */
+export type CameraBackend = 'standard' | 'compatibility'
+
 interface AppSettings {
   recordingsDir: string
   libraryDir: string
+  cameraBackend?: CameraBackend
 }
 
 function readSettings(): AppSettings {
@@ -20,6 +30,19 @@ function readSettings(): AppSettings {
 
 function writeSettings(settings: AppSettings): void {
   writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf-8')
+}
+
+export function getCameraBackend(): CameraBackend {
+  return readSettings().cameraBackend === 'compatibility' ? 'compatibility' : 'standard'
+}
+
+/** The mode this run of the app started with (what Chromium is actually using). */
+const RUNNING_CAMERA_BACKEND: CameraBackend = getCameraBackend()
+
+export function setCameraBackend(backend: CameraBackend): void {
+  const settings = readSettings()
+  settings.cameraBackend = backend
+  writeSettings(settings)
 }
 
 export function getRecordingsDir(): string {
@@ -73,6 +96,16 @@ export function registerSettingsHandlers(): void {
     settings.libraryDir = newDir
     writeSettings(settings)
     return newDir
+  })
+
+  ipcMain.handle('settings:get-camera-backend', () => ({ saved: getCameraBackend(), running: RUNNING_CAMERA_BACKEND }))
+  ipcMain.handle('settings:set-camera-backend', (_e, backend: CameraBackend) => {
+    setCameraBackend(backend === 'compatibility' ? 'compatibility' : 'standard')
+    return getCameraBackend()
+  })
+  ipcMain.handle('app:relaunch', () => {
+    app.relaunch()
+    app.exit(0)
   })
 
   ipcMain.handle('settings:open-library-dir', async () => {

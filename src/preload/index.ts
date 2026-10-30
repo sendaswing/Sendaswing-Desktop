@@ -69,7 +69,22 @@ const electronAPI = {
     openRecordingsDir: (): Promise<void> => ipcRenderer.invoke('settings:open-recordings-dir'),
     getLibraryDir: (): Promise<string> => ipcRenderer.invoke('settings:get-library-dir'),
     setLibraryDir: (): Promise<string | null> => ipcRenderer.invoke('settings:set-library-dir'),
-    openLibraryDir: (): Promise<void> => ipcRenderer.invoke('settings:open-library-dir')
+    openLibraryDir: (): Promise<void> => ipcRenderer.invoke('settings:open-library-dir'),
+    getCameraBackend: (): Promise<{ saved: 'standard' | 'compatibility'; running: 'standard' | 'compatibility' }> =>
+      ipcRenderer.invoke('settings:get-camera-backend'),
+    setCameraBackend: (backend: 'standard' | 'compatibility'): Promise<'standard' | 'compatibility'> =>
+      ipcRenderer.invoke('settings:set-camera-backend', backend)
+  },
+  app: {
+    relaunch: (): Promise<void> => ipcRenderer.invoke('app:relaunch')
+  },
+  camera: {
+    /** Chromium's camera process crashed. Returns an unsubscribe function. */
+    onServiceCrashed: (cb: (info: { switched: boolean }) => void): (() => void) => {
+      const handler = (_e: unknown, info: { switched: boolean }) => cb(info)
+      ipcRenderer.on('camera:service-crashed', handler)
+      return () => { ipcRenderer.removeListener('camera:service-crashed', handler) }
+    }
   }
 }
 

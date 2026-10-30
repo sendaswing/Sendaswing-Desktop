@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { TitleBar } from './TitleBar'
 import { Sidebar } from './Sidebar'
 import { CaptureView } from '../capture/CaptureView'
@@ -8,6 +8,8 @@ import { SettingsView } from '../settings/SettingsView'
 import { useUiStore } from '../../store/uiStore'
 import { useGlobalHotkeys } from '../../hooks/useGlobalHotkeys'
 import { useRestoreCameras } from '../../hooks/useRestoreCameras'
+import { useCameraStore } from '../../store/cameraStore'
+import { useCameraProfileStore } from '../../store/cameraProfileStore'
 import { cn } from '../../lib/utils/cn'
 
 export function AppShell() {
@@ -19,6 +21,26 @@ export function AppShell() {
   useGlobalHotkeys()
   // Reconnect the cameras used last time, with their saved settings
   useRestoreCameras()
+
+  // Chromium's camera process crashed (a camera driver fault). Don't reopen the
+  // same cameras automatically next launch, mark the live slots as failed, and
+  // say what happened.
+  useEffect(() => {
+    const off = (window as any).electronAPI?.camera?.onServiceCrashed?.((info: { switched: boolean }) => {
+      useCameraProfileStore.getState().clearSlots()
+      const { slots, setSlotStatus } = useCameraStore.getState()
+      for (const s of slots) {
+        if (s.deviceId && s.status !== 'idle') setSlotStatus(s.index, 'error', 'Camera driver crashed')
+      }
+      useUiStore.getState().showToast(
+        info.switched
+          ? 'Camera driver crashed — switched to Compatibility mode. Restart the app.'
+          : 'Camera driver crashed. Unplug/replug the camera and restart the app.',
+        'error'
+      )
+    })
+    return () => off?.()
+  }, [])
 
   return (
     <div className="flex flex-col h-full w-full bg-surface-900">

@@ -154,6 +154,16 @@ electron.vite.config.ts  Path aliases: @renderer @lib @store @hooks @components
   current values the first time a camera is seen. The settings panel saves
   every change. Both range cameras have the same name ("HD USB Camera
   (32e4:4689)"), so deviceId is the only way to tell them apart.
+- **Camera crashes / driver mode** (Oct 2026): a camera driver can crash
+  Chromium's separate camera process (`video_capture.mojom.VideoCaptureService`,
+  exit code -1073741819 = access violation) — JS can't catch that. Main logs
+  it (`main.log`), switches `cameraBackend` in `settings.json` to
+  `compatibility` (DirectShow, via `disable-features=MediaFoundationVideoCapture`)
+  for the next launch, and sends `camera:service-crashed` so the renderer
+  forgets the slot assignments (no auto-reopen crash loop) and shows a toast.
+  Settings → Camera Driver Mode flips it back. All disabled Chromium features
+  must share ONE `disable-features` switch. `useRestoreCameras` also skips
+  auto-restore if the app died mid-restore last launch.
 - **Camera controls on Windows** (`lib/camera/cameraControls.ts`): Chromium
   reports `exposureTime` in 100 µs units and the driver only takes
   power-of-two steps (156.25 = 1/64 s, 78.125 = 1/128 s … 1.22 = 1/8192 s);
