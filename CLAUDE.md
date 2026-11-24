@@ -298,11 +298,12 @@ electron.vite.config.ts  Path aliases: @renderer @lib @store @hooks @components
 - [ ] Packaging: `build/icon.ico`, `author` in package.json, move renderer-only
       deps (react, radix, lucide, mp4box, zustand, immer, tailwind-merge, clsx)
       to devDependencies so the installer doesn't ship them twice
-- [ ] `FlipProxy` redraws on rAF (60 fps) — flipped Standard-mode recordings
-      lose frames from 120 fps cameras. Buffered mode no longer uses it (flip is
-      done in ffmpeg); consider doing the same for Standard recordings
+- [x] `FlipProxy` dropped frames at 120 fps. Fixed Nov 2026: Standard mode now
+      records the raw stream and `recording:finalize` flips it with ffmpeg into
+      the studio format (same encode as Buffered). `FlipProxy.ts` is unused —
+      do NOT reintroduce canvas redraws into any recording path
 - [x] `VideoFrameExtractor` allocates a new OffscreenCanvas per frame — reuse one
-- [ ] `useKeyboardShortcuts` re-registers its listener on every render
+- [x] `useKeyboardShortcuts` re-registers its listener on every render (handlers ref)
 - [ ] iPhone HEVC `.mov` files likely fail to decode on Windows without the HEVC
       extension — show a clear message instead of hanging
 - [ ] Buffered capture: real-world test with the range cameras + trigger mic —
@@ -317,5 +318,5 @@ electron.vite.config.ts  Path aliases: @renderer @lib @store @hooks @components
       ("Windows 10 (1903 and up)") keeps updating with GSPro fullscreen on
       top; live 120 fps cameras stay smooth in both windows; FO/DL replay sync
       looks right; CPU with buffers + stream window + OBS encoding
-- [ ] Remove the leftover 5 s `setTimeout` in `ChunkDemuxer.load` that fires
+- [x] Remove the leftover 5 s `setTimeout` in `ChunkDemuxer.load` that fires
       after resolve

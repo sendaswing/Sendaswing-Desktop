@@ -61,8 +61,8 @@ parking lot (section 7).
 
 ## 2. Where things stand (Nov 24 2026)
 
-- 🟡 **Home tab (design D) is still uncommitted on bbgolf.** Built Nov 10; local `HEAD` is still `cfb2fc5`. It needs testing, then a commit, before anything else lands on top of it.
-- 🟡 **Camera crash on BEEF (Oct 29):** fix merged (PRs #20, #21). **Still needs a garage test.**
+- ✅ **Home tab (design D)** tested and committed (Nov 24).
+- ✅ **Cameras** confirmed working after the Oct 29 crash fix (PRs #20, #21).
 - 🟡 Oct 20 import/folders/player plan: agreed, not built. **D1 decided Nov 24: dashes (`2026-12-01`)**, so it's unblocked.
 - ✅ Working in real use: buffered capture + trigger mic, `.mov` import/convert, Stream window.
 - ✅ Installer config is mostly ready: `electron-builder.yml` builds an NSIS installer and already unpacks ffmpeg/ffprobe. Missing: `build/icon.ico`, `author`, a test build.
@@ -74,8 +74,8 @@ parking lot (section 7).
 **Version:** `1.0.0-beta.1` · **Who gets it (D9):** Brendan's home simulator (BEEF) + bbgolf laptop → the **2 simulator bays at Granite Links** → later the **semi-private commercial location** (less used, can be set up)
 
 ### Week 1 · Nov 24 – 30 (Thanksgiving week: keep it light)
-- [ ] **Test + commit the Home tab** on bbgolf (`npm run typecheck:web`, `npm run typecheck:node`, `npm run dev`), push, pull on BEEF
-- [ ] **Garage test on BEEF:** Camera Driver Mode (cameras open, Compatibility mode holds) + buffered capture re-check (~60 fps preview, pre-roll timing)
+- [x] **Test + commit the Home tab** on bbgolf (`npm run typecheck:web`, `npm run typecheck:node`, `npm run dev`), push, pull on BEEF
+- [x] **Garage test on BEEF:** Camera Driver Mode (cameras open, Compatibility mode holds) + buffered capture re-check (~60 fps preview, pre-roll timing)
 - [x] Decide D1 (dashes), D2 (MIT), D8 (public Drive link), D10 (Send a Swing tab → Drive)
 - [x] Decide D9: home sim first, then Granite Links' 2 sim bays, then the semi-private location
 - [ ] Brendan sends the field list (or a screenshot) of his sendaswing.com lesson form, for the Send a Swing tab notes
@@ -98,9 +98,9 @@ parking lot (section 7).
 - [ ] Analyze clip panel: today expanded, past days collapsed, newest first
 
 **Fixes that matter for beta testers**
-- [ ] Flipped Standard-mode recordings drop frames at 120 fps (`FlipProxy`): flip in ffmpeg like Buffered mode
-- [ ] Remove the leftover 5 s `setTimeout` in `ChunkDemuxer.load`
-- [ ] `useKeyboardShortcuts` re-registers on every render
+- [x] Flipped Standard-mode recordings drop frames at 120 fps (`FlipProxy`): flip in ffmpeg like Buffered mode *(done Nov 24, needs a garage test with a flipped camera)*
+- [x] Remove the leftover 5 s `setTimeout` in `ChunkDemuxer.load`
+- [x] `useKeyboardShortcuts` re-registers on every render
 - [ ] Library/ClipBrowser thumbnails via `sas-media://` instead of buffer copies (speed with big folders)
 - [ ] Confirm an iPhone HEVC `.mov` imports fine through ffmpeg. If so, **drop** the HEVC warning item
 - [ ] Housekeeping: delete stray `Claude outputs/index.ts`; fix the stale OneDrive path in CLAUDE.md
@@ -227,6 +227,7 @@ parking lot (section 7).
 
 | Date | Change | Commit / PR |
 |---|---|---|
+| 2026-11-24 | Beta fixes: Standard-mode flips now done by ffmpeg on save (full frame rate, studio format; FlipProxy no longer used); ChunkDemuxer 5 s timer removed; useKeyboardShortcuts registers once. Home tab + camera test confirmed | not committed yet |
 | 2026-11-24 | Beta sites set (home sim, Granite Links 2 bays, semi-private location); submissions go to Drive `SaS-Desktop` folder | — |
 | 2026-11-24 | Decisions: dashes for date folders, MIT license (LICENSE file added), Pro Library from public Drive folder, Send a Swing tab uploads 2 swings + notes to Drive | — |
 | 2026-11-24 | Re-planned for a public **Beta 1 by Dec 14**: 3-week plan, cut list, Library + lesson sharing added, promotions put on hold. New decisions D8–D10 | — |

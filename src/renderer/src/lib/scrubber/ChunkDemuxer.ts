@@ -36,7 +36,12 @@ export class ChunkDemuxer {
 
     const file = MP4Box.createFile()
 
-    return new Promise((resolve, reject) => {
+    return new Promise((resolveOuter, rejectOuter) => {
+      // Settle exactly once (onSamples, onError and the post-flush check can all fire)
+      let settled = false
+      const resolve = (r: DemuxResult) => { if (!settled) { settled = true; resolveOuter(r) } }
+      const reject = (e: Error) => { if (!settled) { settled = true; rejectOuter(e) } }
+
       let videoTrackId = -1
       let timescale = 1
       let codecConfig: DemuxResult['codecConfig'] = {
@@ -110,15 +115,17 @@ export class ChunkDemuxer {
       file.appendBuffer(buf)
       file.flush()
 
-      // Safety net: if mp4box never reports all samples, settle with what we
-      // have (or fail) instead of hanging forever. No-op once resolved.
-      setTimeout(() => {
+      // mp4box parses synchronously inside appendBuffer/flush, so by now every
+      // sample it can find has been delivered. If the track's sample count never
+      // matched (odd/truncated files), settle with what we have right away
+      // instead of waiting on a timer.
+      if (!settled) {
         if (this._samples.length > 0) {
           resolve({ samples: this._samples, fps: this._fps, duration: this._duration, codecConfig })
         } else {
-          reject(new Error('parse-timeout: no samples decoded'))
+          reject(new Error('parse-failed: no samples decoded'))
         }
-      }, 5000)
+      }
     })
   }
 

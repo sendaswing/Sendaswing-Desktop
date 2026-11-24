@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 const electronAPI = {
   recording: {
-    init: (opts: { filename: string; cameraLabel: string; cameraAngle: string; club: string }) =>
+    init: (opts: { filename: string; cameraLabel: string; cameraAngle: string; club: string; flipH?: boolean; flipV?: boolean; fps?: number }) =>
       ipcRenderer.invoke('recording:init', opts),
     chunk: (sessionId: string, chunk: Uint8Array) =>
       ipcRenderer.invoke('recording:chunk', { sessionId, chunk }),

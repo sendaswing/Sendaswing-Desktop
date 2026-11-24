@@ -4,10 +4,8 @@ import { useClipStore } from '../store/clipStore'
 import { useSettingsStore } from '../store/settingsStore'
 import { useCameraStore } from '../store/cameraStore'
 import { RecordingSession } from '../lib/recording/RecordingSession'
-import { FlipProxy } from '../lib/recording/FlipProxy'
 
 const sessions = new Map<number, RecordingSession>()
-const proxies = new Map<number, FlipProxy>()
 
 const sleep = (ms: number) => new Promise<void>((res) => setTimeout(res, ms))
 
@@ -19,19 +17,13 @@ export function useRecorder() {
   const cancelledRef = useRef(false)
 
   const startRecording = useCallback(async (slotIndex: number, stream: MediaStream, label: string, cameraAngle: string, club: string, swingNumber: number) => {
-    // If the slot has a flip active, route through a canvas proxy so the
-    // recorded file matches the flipped live preview orientation.
+    // Record the raw camera stream. If the slot is flipped, the main process
+    // flips the file with ffmpeg on finalize so it matches the live preview
+    // (the old canvas FlipProxy dropped frames from 120 fps cameras).
     const { flipH, flipV } = useCameraStore.getState().slots[slotIndex]
-    let recordStream = stream
-    if (flipH || flipV) {
-      const proxy = new FlipProxy(stream, flipH, flipV)
-      proxies.set(slotIndex, proxy)
-      recordStream = proxy.proxyStream
-    }
-
-    const session = new RecordingSession(slotIndex, label, cameraAngle, club, swingNumber)
+    const session = new RecordingSession(slotIndex, label, cameraAngle, club, swingNumber, flipH, flipV)
     sessions.set(slotIndex, session)
-    const sessionId = await session.start(recordStream)
+    const sessionId = await session.start(stream)
     setSlotRecording(slotIndex, { status: 'recording', sessionId, startTime: Date.now(), elapsed: 0 })
   }, [])
 
@@ -41,9 +33,6 @@ export function useRecorder() {
     setSlotRecording(slotIndex, { status: 'stopping' })
     const clip = await session.stop()
     sessions.delete(slotIndex)
-    // Clean up any flip proxy for this slot
-    const proxy = proxies.get(slotIndex)
-    if (proxy) { proxy.stop(); proxies.delete(slotIndex) }
     if (clip) addClip(clip)
     setSlotRecording(slotIndex, { status: 'saved', sessionId: null })
     setTimeout(() => setSlotRecording(slotIndex, { status: 'idle' }), 2000)

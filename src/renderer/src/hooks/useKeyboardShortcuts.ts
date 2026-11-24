@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 interface ShortcutHandlers {
   onPlay?: () => void
@@ -13,8 +13,14 @@ interface ShortcutHandlers {
 }
 
 export function useKeyboardShortcuts(handlers: ShortcutHandlers) {
+  // Keep the latest handlers in a ref so the listener is registered once,
+  // not torn down and re-added on every render.
+  const handlersRef = useRef(handlers)
+  handlersRef.current = handlers
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const handlers = handlersRef.current
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
 
       switch (e.key) {
@@ -53,5 +59,5 @@ export function useKeyboardShortcuts(handlers: ShortcutHandlers) {
 
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [handlers])
+  }, [])
 }
