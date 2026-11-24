@@ -1,5 +1,5 @@
 import { ipcMain, app, dialog, shell } from 'electron'
-import { readFileSync, writeFileSync, mkdirSync } from 'fs'
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs'
 import { join } from 'path'
 
 const SETTINGS_PATH = join(app.getPath('userData'), 'settings.json')
@@ -45,6 +45,32 @@ export function setCameraBackend(backend: CameraBackend): void {
   writeSettings(settings)
 }
 
+/**
+ * Default Library folder: Brendan's shared Google Drive "Swing Database",
+ * found wherever Google Drive for Desktop is mounted (usually G:, but the
+ * letter can differ per PC). Used only while no Library folder has been
+ * chosen in Settings, and only if the folder actually exists on this PC.
+ */
+const DEFAULT_LIBRARY_SUBPATH = join('My Drive', 'Swing Database')
+
+function findDefaultLibraryDir(): string {
+  if (process.platform !== 'win32') return ''
+  const letters = 'GDEFHIJKLMNOPQRSTUVWXYZ'
+  for (const letter of letters) {
+    const candidate = join(`${letter}:\\`, DEFAULT_LIBRARY_SUBPATH)
+    try {
+      if (existsSync(candidate)) return candidate
+    } catch { /* drive not ready */ }
+  }
+  return ''
+}
+
+/** The chosen Library folder, or the Drive default when none has been chosen. */
+export function getLibraryDir(): string {
+  const chosen = readSettings().libraryDir ?? ''
+  return chosen || findDefaultLibraryDir()
+}
+
 export function getRecordingsDir(): string {
   return readSettings().recordingsDir
 }
@@ -78,12 +104,10 @@ export function registerSettingsHandlers(): void {
     await shell.openPath(dir)
   })
 
-  ipcMain.handle('settings:get-library-dir', () => {
-    return readSettings().libraryDir ?? ''
-  })
+  ipcMain.handle('settings:get-library-dir', () => getLibraryDir())
 
   ipcMain.handle('settings:set-library-dir', async () => {
-    const current = readSettings().libraryDir ?? ''
+    const current = getLibraryDir()
     const result = await dialog.showOpenDialog({
       title: 'Choose Library Folder',
       defaultPath: current || app.getPath('home'),
@@ -109,7 +133,7 @@ export function registerSettingsHandlers(): void {
   })
 
   ipcMain.handle('settings:open-library-dir', async () => {
-    const dir = readSettings().libraryDir ?? ''
+    const dir = getLibraryDir()
     if (!dir) return
     await shell.openPath(dir)
   })

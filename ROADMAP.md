@@ -79,7 +79,7 @@ parking lot (section 7).
 - [x] Decide D1 (dashes), D2 (MIT), D8 (public Drive link), D10 (Send a Swing tab → Drive)
 - [x] Decide D9: home sim first, then Granite Links' 2 sim bays, then the semi-private location
 - [ ] Brendan sends the field list (or a screenshot) of his sendaswing.com lesson form, for the Send a Swing tab notes
-- [ ] Brendan creates a free Google Cloud project + **API key** (Drive API, read-only) for the Pro Library — Claude walks through it
+- [x] Brendan creates a free Google Cloud project + **API key** (Drive API, read-only) for the Pro Library. Key lives in a gitignored `.env` (`MAIN_VITE_GDRIVE_API_KEY`) on each PC; template in `.env.example`. Tested Nov 24: lists the Swing Database folder
 - [x] Submissions folder: Drive [`SaS-Desktop`](https://drive.google.com/drive/folders/1sjiCKkA-Mb2VdkQUU-wT2z1Zr5S0I_Ek) (private, owned by brendan@bbgolf.academy)
 - [x] Add MIT `LICENSE` file + `license` field in package.json
 
@@ -103,7 +103,8 @@ parking lot (section 7).
 - [x] `useKeyboardShortcuts` re-registers on every render
 - [ ] Library/ClipBrowser thumbnails via `sas-media://` instead of buffer copies (speed with big folders)
 - [ ] Confirm an iPhone HEVC `.mov` imports fine through ffmpeg. If so, **drop** the HEVC warning item
-- [ ] Housekeeping: delete stray `Claude outputs/index.ts`; fix the stale OneDrive path in CLAUDE.md
+- [ ] Housekeeping: fix the stale OneDrive path in CLAUDE.md *(stray files deleted Nov 24)*
+- [x] Library clips (raw phone/tour video) glitch while scrubbing: display-order frame numbers + no skipped reference frames *(Nov 24)*
 
 ### Week 3 · Dec 8 – 13 — Library + lesson sharing + packaging
 **Tighten up the Library**
@@ -227,7 +228,9 @@ parking lot (section 7).
 
 | Date | Change | Commit / PR |
 |---|---|---|
-| 2026-11-24 | Beta fixes: Standard-mode flips now done by ffmpeg on save (full frame rate, studio format; FlipProxy no longer used); ChunkDemuxer 5 s timer removed; useKeyboardShortcuts registers once. Home tab + camera test confirmed | not committed yet |
+| 2026-11-24 | Library defaults to `<Drive>:\My Drive\Swing Database` when no folder is chosen; Library clips are added to Analyze's clip panel (no duplicates). Drive API key created and tested; `.env` gitignored, `.env.example` added | not committed yet |
+| 2026-11-24 | Fix: Library (non-studio, long-GOP / B-frame) clips glitched while scrubbing. Scrubber now numbers frames in display order and never skips reference frames when decoding | not committed yet |
+| 2026-11-24 | Beta fixes: Standard-mode flips now done by ffmpeg on save (full frame rate, studio format; FlipProxy removed); ChunkDemuxer 5 s timer removed; useKeyboardShortcuts registers once. Home tab + camera test confirmed | committed by Brendan |
 | 2026-11-24 | Beta sites set (home sim, Granite Links 2 bays, semi-private location); submissions go to Drive `SaS-Desktop` folder | — |
 | 2026-11-24 | Decisions: dashes for date folders, MIT license (LICENSE file added), Pro Library from public Drive folder, Send a Swing tab uploads 2 swings + notes to Drive | — |
 | 2026-11-24 | Re-planned for a public **Beta 1 by Dec 14**: 3-week plan, cut list, Library + lesson sharing added, promotions put on hold. New decisions D8–D10 | — |

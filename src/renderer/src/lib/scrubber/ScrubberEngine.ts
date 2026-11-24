@@ -14,6 +14,11 @@ export interface ScrubberLoadResult {
 /** Seconds of video to keep decoded ahead of / behind the playhead. */
 const PRELOAD_AHEAD_SECS = 3
 const PRELOAD_BEHIND_SECS = 1
+/**
+ * Extra frames decoded past the target in long-GOP (B-frame) video: a decoder
+ * holds a frame back until a few later ones arrive, so stop a little beyond.
+ */
+const REORDER_SLACK = 8
 
 /**
  * ScrubberEngine — frame-accurate playback over a decoded-frame cache.
@@ -32,7 +37,11 @@ export class ScrubberEngine {
   private canvas: HTMLCanvasElement | null = null
   private ctx: CanvasRenderingContext2D | null = null
 
+  /** Decode order. `samples[d].index` is the presentation frame number. */
   private samples: SampleWithData[] = []
+  /** presentationToDecode[p] = decode position of display frame p. */
+  private pToD: number[] = []
+  private allIntra = true
   private frameCount = 0
   private fps = 30
   private currentFrame = 0
@@ -56,7 +65,7 @@ export class ScrubberEngine {
   private lastPreloadCenter = -1
   /** Frames the cache can hold at this clip's resolution, minus headroom. */
   private usableFrames = 8
-  /** Range currently being decoded by a seek, if any. */
+  /** Range currently being decoded by a seek, if any (DECODE order). */
   private inflight: { start: number; end: number } | null = null
   /** True while the user is dragging the scrubber — preload is paused. */
   private scrubbing = false
@@ -95,6 +104,8 @@ export class ScrubberEngine {
     try {
       const result = await this.demuxer.load(fileBuffer)
       this.samples = result.samples
+      this.pToD = result.presentationToDecode
+      this.allIntra = result.allIntra
       this.fps = result.fps
       this.frameCount = this.samples.length
 
@@ -103,8 +114,9 @@ export class ScrubberEngine {
 
       await this.decoder.init(result.codecConfig)
       this.decoder.setFps(this.fps)
+      this.decoder.setAllIntra(this.allIntra)
       if (this.samples.length > 0) {
-        this.decoder.setFirstTimestampUs(this.samples[0].compositionTimestampUs)
+        this.decoder.setFirstTimestampUs(this.samples[this.pToD[0]].compositionTimestampUs)
       }
 
       // Decode just the first frame so the user sees something immediately;
@@ -185,16 +197,23 @@ export class ScrubberEngine {
    * memory — so the frames around the target are ready for the next scrub step.
    * The target itself renders via onFrameDecoded as soon as it appears.
    */
+  /** Decode position of presentation frame p. */
+  private dIdx(p: number): number {
+    return this.pToD[p] ?? p
+  }
+
   private async decodeTo(target: number): Promise<void> {
     if (this.cache.has(target)) return
-    const kf = this.demuxer.findNearestKeyframe(target)
+    const d = this.dIdx(target)
+    const kf = this.demuxer.findNearestKeyframe(d)
     const kfs = this.demuxer.keyframeIndices
     let gopEnd = this.frameCount - 1
     for (const k of kfs) { if (k > kf) { gopEnd = k - 1; break } }
     // While scrubbing, keep each decode short (target + ~1 s) so the main thread
     // stays free for the next drag event; the full group fills in afterwards.
     const reach = this.scrubbing ? Math.round(this.fps) : this.usableFrames - 1
-    const end = Math.max(target, Math.min(gopEnd, kf + reach, target + reach))
+    const slack = this.allIntra ? 0 : REORDER_SLACK
+    const end = Math.min(gopEnd, Math.max(d + slack, Math.min(gopEnd, kf + reach, d + reach)))
 
     this.inflight = { start: kf, end }
     try {
@@ -236,15 +255,19 @@ export class ScrubberEngine {
     this.preloading = true
     this.lastPreloadCenter = center
 
+    // Window in presentation frames. Decode order differs from display order by
+    // only a few frames, so the window maps onto decode-order groups directly
+    // (with a little slack at the far end for B-frame reordering).
     const lo = Math.max(0, center - this.windowBehind)
     const hi = Math.min(this.frameCount - 1, center + this.windowAhead)
+    const hiDecode = Math.min(this.frameCount - 1, hi + (this.allIntra ? 0 : REORDER_SLACK))
     const kfs = this.demuxer.keyframeIndices
     const groups: Array<{ start: number; end: number }> = []
     for (let g = 0; g < kfs.length; g++) {
       const start = kfs[g]
       const end = g + 1 < kfs.length ? kfs[g + 1] - 1 : this.frameCount - 1
-      if (end < lo || start > hi) continue
-      groups.push({ start, end: Math.min(end, hi) })
+      if (end < lo || start > hiDecode) continue
+      groups.push({ start, end: Math.min(end, hiDecode) })
     }
     // Forward groups first (in order), then backward groups nearest-first
     const forward = groups.filter((gr) => gr.end >= center)
@@ -261,7 +284,7 @@ export class ScrubberEngine {
         // Skip groups that are already fully cached
         let missing = false
         for (let i = gr.start; i <= gr.end; i++) {
-          if (!this.cache.has(i)) { missing = true; break }
+          if (!this.cache.has(this.samples[i].index)) { missing = true; break }
         }
         if (missing) {
           await this.runExclusive(async () => {
@@ -325,7 +348,8 @@ export class ScrubberEngine {
       // decoded, just wait — onFrameDecoded will render it. Otherwise abort
       // and let the seek loop pick up the new target.
       const r = this.inflight
-      if (r && target >= r.start && target <= r.end) return
+      const td = this.dIdx(target)
+      if (r && td >= r.start && td <= r.end) return
       this.pendingSeekTarget = target
       // Only abort (decoder reset = expensive reconfigure) when a big group is
       // in flight; small ones finish faster than a reset would.
@@ -460,5 +484,7 @@ export class ScrubberEngine {
     this.decoder.dispose()
     this.cache.clear()
     this.demuxer.dispose()
+    this.samples = []
+    this.pToD = []
   }
 }

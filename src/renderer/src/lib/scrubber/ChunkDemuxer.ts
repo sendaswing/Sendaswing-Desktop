@@ -2,13 +2,22 @@
 import MP4Box from 'mp4box'
 
 export interface DemuxResult {
+  /**
+   * Samples in DECODE order (the order they must be fed to the decoder).
+   * Each sample's `index` is its PRESENTATION (display) frame number.
+   */
   samples: SampleWithData[]
+  /** presentationToDecode[p] = position in `samples` of display frame p. */
+  presentationToDecode: number[]
+  /** True when every frame is a keyframe (the SaS studio format). */
+  allIntra: boolean
   fps: number
   duration: number
   codecConfig: { codec: string; description?: Uint8Array; codedWidth: number; codedHeight: number }
 }
 
 export interface SampleWithData {
+  /** Presentation (display-order) frame number. */
   index: number
   timestamp: number
   compositionTimestampUs: number
@@ -22,7 +31,9 @@ export class ChunkDemuxer {
   private _samples: SampleWithData[] = []
   private _fps = 30
   private _duration = 0
+  /** Keyframe positions in DECODE order. */
   private _keyframeIndices: number[] = []
+  private _presentationToDecode: number[] = []
 
   async load(fileBuffer: ArrayBuffer): Promise<DemuxResult> {
     // Fast WebM/EBML detection — bytes 0x1A 0x45 0xDF 0xA3
@@ -33,13 +44,23 @@ export class ChunkDemuxer {
 
     this._samples = []
     this._keyframeIndices = []
+    this._presentationToDecode = []
 
     const file = MP4Box.createFile()
 
     return new Promise((resolveOuter, rejectOuter) => {
       // Settle exactly once (onSamples, onError and the post-flush check can all fire)
       let settled = false
-      const resolve = (r: DemuxResult) => { if (!settled) { settled = true; resolveOuter(r) } }
+      const resolve = (r: Omit<DemuxResult, 'presentationToDecode' | 'allIntra'>) => {
+        if (settled) return
+        settled = true
+        this.buildPresentationOrder()
+        resolveOuter({
+          ...r,
+          presentationToDecode: this._presentationToDecode,
+          allIntra: this._keyframeIndices.length === this._samples.length
+        })
+      }
       const reject = (e: Error) => { if (!settled) { settled = true; rejectOuter(e) } }
 
       let videoTrackId = -1
@@ -129,6 +150,20 @@ export class ChunkDemuxer {
     })
   }
 
+  /**
+   * Phone / camera / tour-swing files usually contain B-frames, so the order
+   * frames are stored (decode order) differs from the order they're shown.
+   * Number every frame by display time so frame N really is the Nth picture.
+   */
+  private buildPresentationOrder(): void {
+    const s = this._samples
+    const order = s.map((_, i) => i)
+    order.sort((a, b) => (s[a].compositionTimestampUs - s[b].compositionTimestampUs) || (a - b))
+    this._presentationToDecode = order
+    order.forEach((d, p) => { s[d].index = p })
+  }
+
+  /** Nearest keyframe at or before `decodeIndex` (decode order). */
   findNearestKeyframe(frameIndex: number): number {
     const indices = this._keyframeIndices
     if (indices.length === 0) return 0
@@ -149,6 +184,10 @@ export class ChunkDemuxer {
     return this._samples.length
   }
 
+  get presentationToDecode(): number[] {
+    return this._presentationToDecode
+  }
+
   get keyframeIndices(): number[] {
     return this._keyframeIndices
   }
@@ -156,6 +195,7 @@ export class ChunkDemuxer {
   dispose(): void {
     this._samples = []
     this._keyframeIndices = []
+    this._presentationToDecode = []
   }
 }
 

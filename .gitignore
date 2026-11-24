@@ -4,3 +4,7 @@ dist/
 *.log
 .DS_Store
 *.tsbuildinfo
+
+# Local secrets (Google Drive API key etc.). Never commit.
+.env
+.env.local

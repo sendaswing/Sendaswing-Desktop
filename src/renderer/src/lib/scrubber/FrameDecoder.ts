@@ -26,6 +26,8 @@ export class FrameDecoder {
   private generation = 0
   private inflightBitmaps: Promise<void>[] = []
   private firstUs = -1
+  /** Every frame is a keyframe, so already-cached frames can be skipped safely. */
+  private allIntra = true
 
   /** Fired as soon as a decoded frame lands in the cache (used for instant render). */
   onFrameDecoded: ((frameIndex: number) => void) | null = null
@@ -92,12 +94,18 @@ export class FrameDecoder {
     this.firstUs = us
   }
 
+  setAllIntra(allIntra: boolean): void {
+    this.allIntra = allIntra
+  }
+
   /**
-   * Decode samples[startIndex..endIndex] (inclusive) into the cache.
+   * Decode samples[startIndex..endIndex] (inclusive, DECODE order) into the
+   * cache, keyed by each sample's presentation frame number.
    * `startIndex` MUST be a keyframe.
    *
-   * Resolves as soon as frame `waitFor` (default: endIndex) has landed in the
-   * cache; the rest of the range keeps decoding in the background. No reset()
+   * Resolves as soon as presentation frame `waitFor` has landed in the cache
+   * (or, without `waitFor`, once the whole range has); the rest of the range
+   * keeps decoding in the background. No reset()
    * or flush() on the hot path — both are expensive on hardware decoders and
    * neither is needed when every range starts on a keyframe. flush() is only
    * used as a fallback if the decoder sits on frames without emitting them.
@@ -109,7 +117,7 @@ export class FrameDecoder {
     const end = Math.min(endIndex, samples.length - 1)
     const start = Math.max(0, startIndex)
     if (start > end) return
-    const target = waitFor === undefined ? end : Math.max(start, Math.min(waitFor, end))
+    const target = waitFor === undefined ? -1 : waitFor
 
     const gen = this.generation
     const remaining = new Set<number>()
@@ -117,9 +125,12 @@ export class FrameDecoder {
     for (let i = start; i <= end; i++) {
       const s = samples[i]
       if (!s?.data?.byteLength) continue
-      if (this.cache.has(i) && i !== target) continue
-      this.sampleIndexByUs.set(s.compositionTimestampUs, i)
-      remaining.add(i)
+      // Skipping a cached frame is only safe when every frame is a keyframe.
+      // In normal (long-GOP) video later frames are built from earlier ones,
+      // so skipping one feeds the decoder broken references -> garbage frames.
+      if (this.allIntra && this.cache.has(s.index) && s.index !== target) continue
+      this.sampleIndexByUs.set(s.compositionTimestampUs, s.index)
+      remaining.add(s.index)
       try {
         decoder.decode(new EncodedVideoChunk({
           type: s.isKeyframe ? 'key' : 'delta',
@@ -132,7 +143,7 @@ export class FrameDecoder {
         throw new Error(`decode failed at frame ${i}: ${String(e)}`)
       }
     }
-    if (remaining.size === 0 || this.cache.has(target)) return
+    if (remaining.size === 0 || (target >= 0 && this.cache.has(target))) return
 
     await new Promise<void>((resolve) => {
       let settled = false

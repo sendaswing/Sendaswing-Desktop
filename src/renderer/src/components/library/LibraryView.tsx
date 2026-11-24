@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { BookOpen, Search, Settings } from 'lucide-react'
 import { useSettingsStore } from '../../store/settingsStore'
 import { useAnalysisStore } from '../../store/analysisStore'
+import { useClipStore } from '../../store/clipStore'
 import { makeSemaphore } from '../../lib/utils/semaphore'
 import type { Clip } from '../../types/clip'
 import type { AppRoute } from '../layout/Sidebar'
@@ -108,6 +109,7 @@ function VideoThumbnail({
 export function LibraryView({ onNavigate }: LibraryViewProps) {
   const { libraryDir, setLibraryDir } = useSettingsStore()
   const setActiveClip = useAnalysisStore((s) => s.setActiveClip)
+  const addClip = useClipStore((s) => s.addClip)
   const [files, setFiles] = useState<LibraryFile[]>([])
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
@@ -139,7 +141,8 @@ export function LibraryView({ onNavigate }: LibraryViewProps) {
 
   const handleOpenClip = useCallback((file: LibraryFile) => {
     const clip: Clip = {
-      id: `lib-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      // Same id as Analyze's Library tab, so a clip is only listed once
+      id: `lib-${file.filePath}`,
       name: file.name,
       filePath: file.filePath,
       duration: 0,
@@ -153,9 +156,12 @@ export function LibraryView({ onNavigate }: LibraryViewProps) {
       tags: [],
       annotations: []
     }
-    setActiveClip(clip)
+    // Add it to Analyze's clip panel so it stays easy to get back to
+    addClip(clip)
+    const added = useClipStore.getState().clips.find((c) => c.id === clip.id) ?? clip
+    setActiveClip(added)
     onNavigate('analyze')
-  }, [setActiveClip, onNavigate])
+  }, [setActiveClip, addClip, onNavigate])
 
   const filtered = query
     ? files.filter((f) => f.name.toLowerCase().includes(query.toLowerCase()))
