@@ -14,6 +14,9 @@ const electronAPI = {
   fs: {
     openVideo: (defaultPath?: string): Promise<string[]> => ipcRenderer.invoke('fs:open-video', defaultPath),
     getRecordingsDir: (): Promise<string> => ipcRenderer.invoke('fs:get-recordings-dir'),
+    /** Every video in the recordings folder (two folders deep), newest first. For the Home screen. */
+    listRecordings: (): Promise<Array<{ name: string; filePath: string; relDir: string[]; mtimeMs: number }>> =>
+      ipcRenderer.invoke('fs:list-recordings'),
     readFileAsBuffer: (filePath: string): Promise<ArrayBuffer> =>
       ipcRenderer.invoke('fs:read-file-as-buffer', filePath),
     scanFolder: (): Promise<{ folderPath: string; files: Array<{ name: string; filePath: string }> } | null> =>

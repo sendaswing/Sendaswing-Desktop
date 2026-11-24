@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { AppRoute } from '../components/layout/Sidebar'
+import { useSettingsStore } from './settingsStore'
 
 interface UiStore {
   /** Which screen is showing. Lives in a store so capture/hotkeys can navigate. */
@@ -16,7 +17,8 @@ interface UiStore {
 let toastTimer: ReturnType<typeof setTimeout> | null = null
 
 export const useUiStore = create<UiStore>()((set) => ({
-  route: 'capture',
+  // Settings → Start Screen (Home by default; Capture suits the garage setup)
+  route: useSettingsStore.getState().startScreen ?? 'home',
   setRoute: (route) => set({ route }),
   toast: null,
   showToast: (text, kind = 'info') => {

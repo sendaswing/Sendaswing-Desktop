@@ -1,9 +1,62 @@
 import { ipcMain, app, dialog, nativeImage } from 'electron'
 import { mkdirSync, readdirSync } from 'fs'
-import { readFile, stat } from 'fs/promises'
+import type { Dirent } from 'fs'
+import { readFile, readdir, stat } from 'fs/promises'
 import { join, extname } from 'path'
+import { getRecordingsDir } from './settings'
 
 const VIDEO_EXTS = new Set(['.mp4', '.mov', '.webm', '.m4v', '.avi'])
+
+/** One video file found in the recordings folder (for the Home screen). */
+export interface RecordingFile {
+  name: string
+  filePath: string
+  /** Folders between the recordings folder and the file, e.g. ['2026-11-10', 'JohnSmith']. */
+  relDir: string[]
+  mtimeMs: number
+}
+
+/**
+ * Every video in the recordings folder, newest first. Looks two folders deep so
+ * the planned Recordings/<date>/<player>/ layout works as well as today's flat
+ * folder. Unreadable folders are skipped rather than failing the whole scan.
+ */
+async function listRecordings(): Promise<RecordingFile[]> {
+  const root = getRecordingsDir()
+  if (!root) return []
+  const out: RecordingFile[] = []
+
+  const walk = async (dir: string, relDir: string[]): Promise<void> => {
+    let entries: Dirent[] = []
+    try {
+      entries = await readdir(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const e of entries) {
+      const full = join(dir, e.name)
+      if (e.isDirectory()) {
+        if (relDir.length < 2 && !e.name.startsWith('.')) await walk(full, [...relDir, e.name])
+      } else if (e.isFile() && VIDEO_EXTS.has(extname(e.name).toLowerCase())) {
+        try {
+          const info = await stat(full)
+          out.push({ name: e.name, filePath: full, relDir, mtimeMs: info.mtimeMs })
+        } catch {
+          // File vanished between readdir and stat — skip it
+        }
+      }
+    }
+  }
+
+  try {
+    mkdirSync(root, { recursive: true })
+  } catch {
+    return []
+  }
+  await walk(root, [])
+  out.sort((a, b) => b.mtimeMs - a.mtimeMs)
+  return out
+}
 
 export function registerFilesystemHandlers(): void {
   ipcMain.handle('fs:open-video', async (_event, defaultPath?: string) => {
@@ -14,6 +67,8 @@ export function registerFilesystemHandlers(): void {
     })
     return result.canceled ? [] : result.filePaths
   })
+
+  ipcMain.handle('fs:list-recordings', () => listRecordings())
 
   ipcMain.handle('fs:get-recordings-dir', () => {
     const dir = join(app.getPath('userData'), 'recordings')

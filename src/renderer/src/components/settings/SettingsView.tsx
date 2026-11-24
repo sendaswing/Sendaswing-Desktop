@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { FolderOpen, FolderInput, CheckCircle, Keyboard, MonitorPlay, Camera, RotateCw } from 'lucide-react'
+import { FolderOpen, FolderInput, CheckCircle, Keyboard, MonitorPlay, Camera, RotateCw, Home } from 'lucide-react'
 import { useSettingsStore } from '../../store/settingsStore'
 import { useUiStore } from '../../store/uiStore'
 import { toggleStreamWindow } from '../stream/streamWindow'
@@ -68,7 +68,8 @@ export function SettingsView() {
   const {
     recordingsDir, setRecordingsDir, libraryDir, setLibraryDir, recordingDelay, setRecordingDelay, recordingDuration, setRecordingDuration,
     preRollSec, setPreRollSec, postRollSec, setPostRollSec, autoReplay, setAutoReplay, replaySpeed, setReplaySpeed,
-    toggleLiveKey, setToggleLiveKey, saveSwingKey, setSaveSwingKey, streamOverlays, setStreamOverlays
+    toggleLiveKey, setToggleLiveKey, saveSwingKey, setSaveSwingKey, streamOverlays, setStreamOverlays,
+    startScreen, setStartScreen
   } = useSettingsStore()
   const streamOpen = useUiStore((s) => s.streamWindowOpen)
   const [recSaved, setRecSaved] = useState(false)
@@ -109,6 +110,30 @@ export function SettingsView() {
       <h1 className="text-base font-semibold text-white/80 mb-6 tracking-wide uppercase">Settings</h1>
 
       <div className="max-w-xl space-y-8">
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-sm font-medium text-white/60 mb-1 flex items-center gap-1.5"><Home size={14} /> Start Screen</h2>
+            <p className="text-xs text-white/30 mb-3">
+              The screen the app opens on. Home shows today's recordings; Capture goes straight to the live cameras
+              (handy on the garage PC).
+            </p>
+          </div>
+          <div className="flex gap-1 bg-black/30 border border-white/10 rounded-lg px-3 py-2">
+            {([['home', 'Home'], ['capture', 'Capture']] as const).map(([value, label]) => (
+              <button
+                key={value}
+                onClick={() => setStartScreen(value)}
+                className={cn(
+                  'px-3 py-1.5 rounded text-xs transition-colors',
+                  startScreen === value ? 'bg-accent-500/25 text-white/90' : 'bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/80'
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </section>
+
         <section className="space-y-3">
           <div>
             <h2 className="text-sm font-medium text-white/60 mb-1">Recording Location</h2>

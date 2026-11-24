@@ -5,6 +5,9 @@ import { immer } from 'zustand/middleware/immer'
 /** 'standard' = countdown + Record button; 'buffered' = always-rolling pre-roll, saved on a trigger. */
 export type CaptureMode = 'standard' | 'buffered'
 
+/** Screen the app opens on. */
+export type StartScreen = 'home' | 'capture'
+
 interface SettingsStore {
   recordingsDir: string
   libraryDir: string
@@ -29,6 +32,9 @@ interface SettingsStore {
   /** Stream window: show LIVE / REPLAY / FO·DL labels over the video. */
   streamOverlays: boolean
 
+  /** Screen the app opens on. */
+  startScreen: StartScreen
+
   // Hotkeys (KeyboardEvent.key values)
   toggleLiveKey: string
   saveSwingKey: string
@@ -45,6 +51,7 @@ interface SettingsStore {
   setAutoReplay: (v: boolean) => void
   setReplaySpeed: (n: number) => void
   setStreamOverlays: (v: boolean) => void
+  setStartScreen: (s: StartScreen) => void
   setToggleLiveKey: (k: string) => void
   setSaveSwingKey: (k: string) => void
 }
@@ -65,6 +72,7 @@ export const useSettingsStore = create<SettingsStore>()(
       autoReplay: true,
       replaySpeed: 0.25,
       streamOverlays: true,
+      startScreen: 'home',
 
       toggleLiveKey: 'Tab',
       saveSwingKey: 's',
@@ -81,6 +89,7 @@ export const useSettingsStore = create<SettingsStore>()(
       setAutoReplay: (v) => { set((s) => { s.autoReplay = v }) },
       setReplaySpeed: (n) => { set((s) => { s.replaySpeed = n }) },
       setStreamOverlays: (v) => { set((s) => { s.streamOverlays = v }) },
+      setStartScreen: (v) => { set((s) => { s.startScreen = v }) },
       setToggleLiveKey: (k) => { set((s) => { s.toggleLiveKey = k }) },
       setSaveSwingKey: (k) => { set((s) => { s.saveSwingKey = k }) }
     })),
@@ -97,6 +106,7 @@ export const useSettingsStore = create<SettingsStore>()(
         autoReplay: s.autoReplay,
         replaySpeed: s.replaySpeed,
         streamOverlays: s.streamOverlays,
+        startScreen: s.startScreen,
         toggleLiveKey: s.toggleLiveKey,
         saveSwingKey: s.saveSwingKey
       })

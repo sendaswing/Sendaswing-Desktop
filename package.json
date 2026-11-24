@@ -2,6 +2,8 @@
   "name": "sendaswing-desktop",
   "version": "1.0.0",
   "description": "Golf swing video analysis studio",
+  "author": "Send a Swing",
+  "license": "MIT",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",

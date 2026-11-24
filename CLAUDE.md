@@ -14,6 +14,18 @@ give exact commands to run, and never assume he will hand-edit code.
 
 Core workflows the app supports:
 
+- **Home** — first screen in the sidebar (and the default start screen;
+  Settings → Start Screen can make Capture the start screen instead). Today's
+  swings as cards from the recordings folder, FO + DL of the same swing number
+  paired into one card; clicking a card opens it in Analyze (two angles side by
+  side via `pairedStart`, like a fresh buffered capture). Grouped by player
+  folder with filter chips once player folders exist; earlier days are listed
+  collapsed (last 30). Import drop zone (→ the Import trim screen) and
+  quick-action tiles (Capture, Analyze, Compare, Library, Stream, Settings,
+  SendaSwing → sendaswing.com in the default browser for now). Data comes from
+  `fs:list-recordings` (main, two folders deep); grouping lives in
+  `lib/home/swings.ts` and understands both `MM.DD.YYYY.FO.3.mp4` names and the
+  planned `<date>/<Player>/FO.3.mp4` session folders.
 - **Capture** — live webcam preview (multi-camera grid), record swings to disk,
   tagged by camera angle (FO = face-on, DL = down-the-line) and club. Two modes:
   **Standard** (countdown + Record/Stop) and **Buffered** (cameras keep a rolling
@@ -99,7 +111,7 @@ src/
   preload/index.ts    contextBridge → exposes window.electronAPI to the renderer
   renderer/           React app (browser side, no Node access)
     src/
-      components/     capture/ import/ analysis/ comparison/ library/ layout/ settings/ stream/
+      components/     home/ capture/ import/ analysis/ comparison/ library/ layout/ settings/ stream/
       hooks/          useRecorder, useScrubber, useDrawing, useCameras, useVideoElement,
                       useBufferedCapture, useGlobalHotkeys…
       lib/
@@ -108,6 +120,7 @@ src/
                       BufferedCaptureController (singleton)
         drawing/      tools, serializer
         replay/       pairedStart (start both Analyze panels at the same moment)
+        home/         swings (recordings folder → days → swings for the Home screen)
       store/          Zustand stores (analysis, camera, clip, comparison, recording, settings,
                       ui = current route + toast)
       types/          clip, camera, drawing, scrubber
@@ -188,7 +201,9 @@ electron.vite.config.ts  Path aliases: @renderer @lib @store @hooks @components
   frame 0 until both are loaded, then play together at the replay speed.
   `recordingStore.lastSwingClips` holds every angle of the latest swing.
 - **Navigation** goes through `useUiStore().setRoute` (not local state) so
-  capture and hotkeys can switch screens.
+  capture and hotkeys can switch screens. Routes: home, capture, analyze,
+  library, settings. The first route comes from `settingsStore.startScreen`
+  (persisted). Tab from Home goes to Capture.
 - **Scrubbing** is frame-based, not time-based: `ScrubberEngine` demuxes the
   whole file, decodes on demand into a `FrameCache` (180 frames), and draws to a
   canvas. WebM files without a usable decoder fall back to

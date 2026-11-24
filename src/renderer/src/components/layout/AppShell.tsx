@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react'
 import { TitleBar } from './TitleBar'
 import { Sidebar } from './Sidebar'
+import { HomeView } from '../home/HomeView'
 import { CaptureView } from '../capture/CaptureView'
 import { AnalysisView } from '../analysis/AnalysisView'
 import { LibraryView } from '../library/LibraryView'
@@ -48,6 +49,7 @@ export function AppShell() {
       <div className="flex flex-1 min-h-0">
         <Sidebar route={route} onNavigate={setRoute} />
         <main className="relative flex-1 min-w-0 overflow-hidden">
+          {route === 'home' && <HomeView />}
           {route === 'capture' && <CaptureView />}
           {route === 'analyze' && <AnalysisView />}
           {route === 'library' && <LibraryView onNavigate={setRoute} />}

@@ -1,10 +1,10 @@
 import React from 'react'
-import { Video, BarChart2, BookOpen, Settings, MonitorPlay } from 'lucide-react'
+import { Home, Video, BarChart2, BookOpen, Settings, MonitorPlay } from 'lucide-react'
 import { cn } from '../../lib/utils/cn'
 import { useUiStore } from '../../store/uiStore'
 import { toggleStreamWindow } from '../stream/streamWindow'
 
-export type AppRoute = 'capture' | 'analyze' | 'library' | 'settings'
+export type AppRoute = 'home' | 'capture' | 'analyze' | 'library' | 'settings'
 
 interface SidebarProps {
   route: AppRoute
@@ -12,6 +12,7 @@ interface SidebarProps {
 }
 
 const NAV_ITEMS: Array<{ route: AppRoute; icon: React.ComponentType<any>; label: string }> = [
+  { route: 'home', icon: Home, label: 'Home' },
   { route: 'capture', icon: Video, label: 'Capture' },
   { route: 'analyze', icon: BarChart2, label: 'Analyze' },
   { route: 'library', icon: BookOpen, label: 'Library' },
